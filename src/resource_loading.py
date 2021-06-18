@@ -67,5 +67,5 @@ def load_stopwords(path):
     stopwords_list = []
     with open(path) as f:
         for line in f:
-            stopwords_list.append(f)
+            stopwords_list.append(line)
     return stopwords_list

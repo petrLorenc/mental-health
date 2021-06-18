@@ -4,8 +4,8 @@ from metrics import Metrics
 # from comet_ml import Experiment, Optimizer
 import logging, sys, os
 import pickle
-from code.loader.DataGenerator import DataGenerator
-from code.model import build_hierarchical_model
+from src.loader.DataGenerator import DataGenerator
+from src.model import build_hierarchical_model
 from resource_loading import load_NRC, load_LIWC, load_stopwords
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"

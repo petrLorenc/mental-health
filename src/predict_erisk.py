@@ -3,8 +3,8 @@ import random
 from load_save_model import load_params, load_saved_model_weights
 from resource_loading import load_stopwords
 import json
-from code.loader.EriskDataGenerator import EriskDataGenerator
-from code.loader.DAICDataGenerator import DAICDataGenerator
+from src.loader.EriskDataGenerator import EriskDataGenerator
+from src.loader.DAICDataGenerator import DAICDataGenerator
 import numpy as np
 
 RUNS_MODEL_PATHS = {
@@ -108,7 +108,7 @@ def predict(test_data_object, idx, model):
                                        post_groups_per_user=None,
                                        shuffle=False, return_subjects=True,
                                        compute_liwc=True, chunk_level_datapoints=False,
-                                       keep_first_batches=False,
+                                       keep_first_batches=True,
                                        test_data_object=test_data_object, idx=idx)
     # for _ in range(53):
     #     for data_round in data_rounds:

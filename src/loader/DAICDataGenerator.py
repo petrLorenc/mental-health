@@ -1,8 +1,8 @@
 import json
 from nltk.tokenize import RegexpTokenizer
-from code.loader.DataGenerator import DataGenerator
+from src.loader.DataGenerator import DataGenerator
 import logging
-from code.loader.data_loading import load_erisk_server_data
+from src.loader.data_loading import load_erisk_server_data
 
 
 class DAICDataGenerator(DataGenerator):

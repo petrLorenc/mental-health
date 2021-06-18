@@ -4,6 +4,7 @@ from load_save_model import load_params, load_saved_model_weights
 from resource_loading import load_stopwords
 import json
 from code.loader.EriskDataGenerator import EriskDataGenerator
+from code.loader.DAICDataGenerator import DAICDataGenerator
 import numpy as np
 
 RUNS_MODEL_PATHS = {
@@ -78,7 +79,7 @@ def scores_to_alerts(predictions_dict, conservative_alerts=False,
     return {u: {'scores': scores_per_user[u], 'decisions': alerts_per_user[u]} for u in users}
 
 
-def predict(run_nr, data_rounds, conservative_alerts=True):
+def predict(test_data_object, idx, model):
     """
     Expects a run_nr corresponding to the solution to be used for generating predictions.
     Solutions correspond to the ones described in the PDF document - more details on their
@@ -97,28 +98,23 @@ def predict(run_nr, data_rounds, conservative_alerts=True):
     Returns:
     a dictionary of scores and alerts (1/0) per user in the input data
     """
-
-    model_path = "../resources/models/lstm_depression_hierarchical100"
-    hyperparams, hyperparams_features = load_params(model_path)
     alert_threshold = 0.5
     rolling_window = 0
 
-    model = load_saved_model_weights(model_path, hyperparams, hyperparams_features,
-                                     h5=True)
-
-    data_generator = EriskDataGenerator(hyperparams_features=hyperparams_features,
-                                        seq_len=hyperparams['maxlen'], batch_size=1,
-                                        max_posts_per_user=None,
-                                        posts_per_group=hyperparams['posts_per_group'],
-                                        post_groups_per_user=None,
-                                        shuffle=False, return_subjects=True,
-                                        compute_liwc=True, chunk_level_datapoints=False,
-                                        keep_first_batches=False)
-    for _ in range(53):
-        for data_round in data_rounds:
-            for x in data_round:
-                x["content"] += " " + str(random.randint(0, 10000))
-            data_generator.add_data_round(data_round)
+    data_generator = DAICDataGenerator(hyperparams_features=hyperparams_features,
+                                       seq_len=hyperparams['maxlen'], batch_size=1,
+                                       max_posts_per_user=None,
+                                       posts_per_group=hyperparams['posts_per_group'],
+                                       post_groups_per_user=None,
+                                       shuffle=False, return_subjects=True,
+                                       compute_liwc=True, chunk_level_datapoints=False,
+                                       keep_first_batches=False,
+                                       test_data_object=test_data_object, idx=idx)
+    # for _ in range(53):
+    #     for data_round in data_rounds:
+    #         for x in data_round:
+    #             x["content"] += " " + str(random.randint(0, 10000))
+    #         data_generator.add_data_round(data_round)
 
     predictions_per_user = {}
     for dp in data_generator:
@@ -137,26 +133,41 @@ def predict(run_nr, data_rounds, conservative_alerts=True):
 
 if __name__ == '__main__':
     # Reading eRisk data
-    data_round1 = [
-        {"redditor": 340,
-         # "content": "    I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore      I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore      I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore   ",
-         "content": "bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore ",
-         # "content": "",
-         "date": "2017-05-09T17:01:50.000+0000",
-         "id": 169531, "title": "",
-         "number": 1,
-         "nick": "subject992"}]
+    # data_round1 = [
+    #     {"redditor": 340,
+    #      # "content": "    I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore      I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore      I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore   ",
+    #      "content": "bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore ",
+    #      # "content": "",
+    #      "date": "2017-05-09T17:01:50.000+0000",
+    #      "id": 169531, "title": "",
+    #      "number": 1,
+    #      "nick": "subject992"}]
 
-    print(predict(run_nr=4, data_rounds=[data_round1]))
+    # print(predict(run_nr=4, data_rounds=[data_round1]))
+    with open("../data/daic-woz/test_data.json", "r") as f:
+        data_json = json.load(f)
 
-    data_round1 = [
-        {"redditor": 340,
-         # "content": "    I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore      I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore      I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore   ",
-         # "content": "bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore ",
-         "content": "",
-         "date": "2017-05-09T17:01:50.000+0000",
-         "id": 169531, "title": "",
-         "number": 1,
-         "nick": "subject992"}]
+    model_path = "../resources/models/lstm_depression_hierarchical100"
+    hyperparams, hyperparams_features = load_params(model_path)
+    model = load_saved_model_weights(model_path, hyperparams, hyperparams_features,
+                                     h5=True)
+    model.summary()
 
-    print(predict(run_nr=4, data_rounds=[data_round1]))
+    for idx, session in enumerate(data_json):
+        # print(session)
+        print(f"TRUTH: {session['label']}")
+        print(predict(test_data_object=session, idx=idx, model=model))
+        print()
+        print()
+
+    # data_round1 = [
+    #     {"redditor": 340,
+    #      # "content": "    I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore      I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore      I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore     I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore. I am so sad and I wan't to kill myself. Not happy anymore   ",
+    #      # "content": "bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore bookstore ",
+    #      "content": "",
+    #      "date": "2017-05-09T17:01:50.000+0000",
+    #      "id": 169531, "title": "",
+    #      "number": 1,
+    #      "nick": "subject992"}]
+    #
+    # print(predict(run_nr=4, data_rounds=[data_round1]))

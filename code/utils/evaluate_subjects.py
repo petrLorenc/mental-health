@@ -1,4 +1,4 @@
-from metrics_decision_based import EriskScoresT1T2
+from utils.metrics_decision_based import EriskScoresT1T2
 from DataGenerator import DataGenerator
 import numpy as np
 

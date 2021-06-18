@@ -1,4 +1,4 @@
-from liwc_readDict import readDict
+from utils.liwc_readDict import readDict
 import pickle
 import numpy as np
 

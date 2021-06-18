@@ -1,7 +1,5 @@
-from collections import Counter
-import numpy as np
 from resource_loading import load_NRC, load_LIWC, load_vocabulary
-from feature_encoders import encode_liwc_categories
+
 
 def load_erisk_data(writings_df, hyperparams_features, by_subset=True,
                     pronouns = ["i", "me", "my", "mine", "myself"],

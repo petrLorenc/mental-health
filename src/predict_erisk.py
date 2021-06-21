@@ -79,7 +79,7 @@ def scores_to_alerts(predictions_dict, conservative_alerts=False,
     return {u: {'scores': scores_per_user[u], 'decisions': alerts_per_user[u]} for u in users}
 
 
-def predict(test_data_object, idx, model):
+def predict(test_data_object, nickname, model):
     """
     Expects a run_nr corresponding to the solution to be used for generating predictions.
     Solutions correspond to the ones described in the PDF document - more details on their
@@ -109,7 +109,7 @@ def predict(test_data_object, idx, model):
                                        shuffle=False, return_subjects=True,
                                        compute_liwc=True, chunk_level_datapoints=False,
                                        keep_first_batches=True,
-                                       test_data_object=test_data_object, idx=idx)
+                                       test_data_object=test_data_object, nickname=nickname)
     # for _ in range(53):
     #     for data_round in data_rounds:
     #         for x in data_round:
@@ -156,7 +156,7 @@ if __name__ == '__main__':
     for idx, session in enumerate(data_json):
         # print(session)
         print(f"TRUTH: {session['label']}")
-        print(predict(test_data_object=session, idx=idx, model=model))
+        print(predict(test_data_object=session, nickname=idx, model=model))
         print()
         print()
 

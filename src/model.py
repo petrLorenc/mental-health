@@ -24,7 +24,8 @@ def build_hierarchical_model(hyperparams, hyperparams_features,
                                 embeddings_regularizer=regularizers.l2(hyperparams['l2_embeddings']),
                                 weights=[embedding_matrix],
                                 trainable=hyperparams['trainable_embeddings'],
-                                name='embeddings_layer')(
+                                name='embeddings_layer',
+                                mask_zero=True)(
         tokens_features)
     embedding_layer = Dropout(hyperparams['dropout'], name='embedding_dropout')(embedding_layer)
 
@@ -70,7 +71,7 @@ def build_hierarchical_model(hyperparams, hyperparams_features,
     # Hierarchy
     sentEncoder = Model(inputs=tokens_features,
                         outputs=sent_representation)
-    # sentEncoder.summary()
+    sentEncoder.summary()
 
     user_encoder = TimeDistributed(sentEncoder, name='user_encoder')(posts_history_input)
 

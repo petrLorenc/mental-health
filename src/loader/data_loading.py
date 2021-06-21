@@ -1,13 +1,8 @@
 from resource_loading import load_NRC, load_LIWC, load_vocabulary
 
 
-def load_erisk_data(writings_df, hyperparams_features, by_subset=True,
-                    pronouns = ["i", "me", "my", "mine", "myself"],
-                    train_prop=0.7, valid_prop=0.3, test_slice=2,
-                    nr_slices=5,
-                    min_post_len=3, min_word_len=1, 
-                    user_level=True, labelcol='label', label_index=None,
-                   logger=None):
+def load_erisk_data(writings_df, hyperparams_features, valid_prop=0.3,
+                    min_post_len=3, labelcol='label'):
 #     logger.debug("Loading data...\n")
     
     vocabulary = load_vocabulary(hyperparams_features['vocabulary_path'])

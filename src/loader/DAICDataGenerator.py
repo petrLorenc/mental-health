@@ -1,12 +1,14 @@
 import json
+import string
+import random
 from nltk.tokenize import RegexpTokenizer
-from src.loader.DataGenerator import DataGenerator
+from loader.DataGenerator import DataGenerator
 import logging
-from src.loader.data_loading import load_erisk_server_data
+from loader.data_loading import load_erisk_server_data
 
 
 class DAICDataGenerator(DataGenerator):
-    def __init__(self, test_data_object, idx=0, **kwargs):
+    def __init__(self, test_data_object, nickname=None, **kwargs):
         self.data = {}
         self.subjects_split = {'test': []}
         self.tokenizer = RegexpTokenizer(r'\w+')
@@ -15,15 +17,18 @@ class DAICDataGenerator(DataGenerator):
         else:
             self.logger = None
         super().__init__(self.data, self.subjects_split, set_type='test', logger=self.logger, **kwargs)
-        self.idx = idx
-        self.prepare_data(test_data_object)
+        if test_data_object is not None:
+            self.prepare_data(test_data_object, nickname=nickname)
 
-    def load_daic_data(self, test_data_object):
+    def load_daic_data(self, test_data_object, nickname=None):
         subjects_split = {'test': []}
         user_level_texts = {}
 
         session = test_data_object
-        nickame = str(self.idx)
+        if nickname is not None:
+            nickname = str(nickname)
+        else:
+            nickname = ''.join(random.choices(string.ascii_uppercase + string.digits, k=20))
         for datapoint in session["transcripts"]:
             words = []
             raw_text = ""
@@ -33,19 +38,22 @@ class DAICDataGenerator(DataGenerator):
                     words.extend(tokenized_text)
                     raw_text += datapoint["value"]
 
-                if nickame not in user_level_texts.keys():
-                    user_level_texts[nickame] = {}
-                    user_level_texts[nickame]['texts'] = [words]
-                    user_level_texts[nickame]['raw'] = [raw_text]
-                    subjects_split['test'].append(nickame)
-                else:
-                    user_level_texts[nickame]['texts'].append(words)
-                    user_level_texts[nickame]['raw'].append(raw_text)
+                if nickname not in user_level_texts.keys():
+                    user_level_texts[nickname] = {}
+                    subjects_split['test'].append(nickname)
+                    user_level_texts[nickname]['texts'] = []
+                    user_level_texts[nickname]['raw'] = []
+                    user_level_texts[nickname]["label"] = []
+
+                user_level_texts[nickname]['texts'].append(words)
+                user_level_texts[nickname]['raw'].append(raw_text)
+                user_level_texts[nickname]["label"].append(int(session["label"]["PHQ8_Binary"]))
+
 
         return user_level_texts, subjects_split
 
-    def prepare_data(self, test_data_object):
-        user_level_texts, subjects_split = self.load_daic_data(test_data_object)
+    def prepare_data(self, test_data_object, nickname=None):
+        user_level_texts, subjects_split = self.load_daic_data(test_data_object, nickname=nickname)
         for u in user_level_texts:
             if u not in self.data:
                 self.data[u] = {k: [] for k in user_level_texts[u].keys()}
@@ -57,11 +65,26 @@ class DAICDataGenerator(DataGenerator):
         self.on_epoch_end()
     
     def __getitem__(self, index):
-        if len(self.data) == 0:
-            if self.logger:
-                self.logger.error("Cannot generate with zero data.\n")
-            return
-        if len(self.data) <  self.posts_per_group:
-            if self.logger:
-                self.logger.warning("Number of input datapoints (%d) lower than minimum number of posts per chunk (%d).\n" % (len(self.data), self.posts_per_group))
-        return super().__getitem__(index)
+        'Generate one batch of data'
+        # Reset generated labels
+        if index == 0:
+            self.generated_labels = []
+        # Generate indexes of the batch
+        indexes = self.indexes[index * self.batch_size:(index + 1) * self.batch_size]
+        # Find users
+        user_indexes = [t[0] for t in indexes]
+        users = set([self.subjects_split[self.set][i] for i in user_indexes
+                     if self.subjects_split[self.set][
+                         i] in self.data.keys()])  # TODO: maybe needs a warning that user is missing
+        post_indexes_per_user = {u: [] for u in users}
+        # Sample post ids
+        for u, post_indexes in indexes:
+            user = self.subjects_split[self.set][u]
+            # Note: was bug here - changed it into a list
+            post_indexes_per_user[user].append(post_indexes)
+
+        X, s, y = self.__data_generation_hierarchical__(users, post_indexes_per_user)
+        if self.return_subjects:
+            return X, s, y
+        else:
+            return X, y

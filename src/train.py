@@ -139,7 +139,7 @@ def train(data_generator_train, data_generator_valid,
     except:
         logger.error("Could not save model.\n")
 
-    res = model.evaluate(data_generator_test, batch_size=16)
+    res = model.evaluate(data_generator_test, batch_size=1, verbose=0)
     logger.debug(res)
     return model, history
 

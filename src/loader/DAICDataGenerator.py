@@ -1,84 +1,232 @@
-import json
+from utils.logger import logger
+
+import re
 import string
 import random
+import pickle
+import numpy as np
+
 from nltk.tokenize import RegexpTokenizer
-from loader.DataGenerator import DataGenerator
+from tensorflow.keras.utils import Sequence
+from tensorflow.keras.preprocessing import sequence
+from resource_loading import load_NRC, load_LIWC, load_vocabulary, load_stopwords
+from utils.feature_encoders import encode_emotions, encode_pronouns, encode_stopwords, encode_liwc_categories
 
 
-class DAICDataGenerator(DataGenerator):
-    def __init__(self, test_data_object, nickname=None, **kwargs):
-        self.data = {}
-        self.subjects_split = {'test': []}
+class DAICDataGenerator(Sequence):
+    'Generates data for Keras'
+
+    def __init__(self,
+                 hyperparams_features,
+                 batch_size, seq_len,
+                 compute_liwc=False,
+                 post_groups_per_user=None, posts_per_group=10, post_offset=0,
+                 max_posts_per_user=None,
+                 pronouns=["i", "me", "my", "mine", "myself"],
+                 shuffle=True,
+                 keep_last_batch=True,
+                 keep_first_batches=False,
+                 ablate_emotions=False, ablate_liwc=False
+                 ):
+        'Initialization'
+        self.seq_len = seq_len
+        # Instantiate tokenizer
         self.tokenizer = RegexpTokenizer(r'\w+')
-        super().__init__(self.data, self.subjects_split, set_type='test', **kwargs)
-        if test_data_object is not None:
-            self.prepare_data(test_data_object, nickname=nickname)
+        self.user_level_texts = {}
+        self.batch_size = batch_size
+        self.pronouns = pronouns
+        self.compute_liwc = compute_liwc
+        self.keep_last_batch = keep_last_batch
+        self.shuffle = shuffle
+        self.max_posts_per_user = max_posts_per_user
+        self.post_groups_per_user = post_groups_per_user
+        self.post_offset = post_offset
+        self.posts_per_group = posts_per_group
+        self.padding = "pre"
+        self.pad_value = 0
+        self.keep_first_batches = keep_first_batches  # in the rolling window case, whether it will keep
+        self.vocabulary = load_vocabulary(hyperparams_features['vocabulary_path'])
+        self.voc_size = hyperparams_features['max_features']
+        if ablate_emotions:
+            self.emotions = []
+        else:
+            self.emotion_lexicon = load_NRC(hyperparams_features['nrc_lexicon_path'])
+            self.emotions = list(self.emotion_lexicon.keys())
 
-    def load_daic_data(self, test_data_object, nickname=None):
-        subjects_split = {'test': []}
-        user_level_texts = {}
+        self.liwc_words_for_categories = pickle.load(open(hyperparams_features["liwc_words_cached"], "rb"))
+        if ablate_liwc:
+            self.liwc_categories = []
+        else:
+            self.liwc_categories = set(self.liwc_words_for_categories.keys())
+        self.stopwords_list = load_stopwords(hyperparams_features['stopwords_path'])
 
-        session = test_data_object
+    def load_daic_data(self, session, nickname=None):
         if nickname is not None:
             nickname = str(nickname)
         else:
             nickname = ''.join(random.choices(string.ascii_uppercase + string.digits, k=20))
+
+        if nickname not in self.user_level_texts.keys():
+            self.user_level_texts[nickname] = {}
+            self.user_level_texts[nickname]['texts'] = []
+            self.user_level_texts[nickname]['raw'] = []
+            self.user_level_texts[nickname]["label"] = []
+
         for datapoint in session["transcripts"]:
             words = []
             raw_text = ""
-            if datapoint["speaker"] == "Participant":
-                if "value" in datapoint:
-                    tokenized_text = self.tokenizer.tokenize(datapoint["value"])
-                    words.extend(tokenized_text)
-                    raw_text += datapoint["value"]
+            # if datapoint["speaker"] == "Participant":
+            if "value" in datapoint:
+                tokenized_text = self.tokenizer.tokenize(datapoint["value"])
+                words.extend(tokenized_text)
+                raw_text += datapoint["value"]
 
-                if nickname not in user_level_texts.keys():
-                    user_level_texts[nickname] = {}
-                    subjects_split['test'].append(nickname)
-                    user_level_texts[nickname]['texts'] = []
-                    user_level_texts[nickname]['raw'] = []
-                    user_level_texts[nickname]["label"] = []
+                self.user_level_texts[nickname]['texts'].append(words)
+                self.user_level_texts[nickname]['raw'].append(raw_text)
+        self.user_level_texts[nickname]["label"].append(int(session["label"]["PHQ8_Binary"]))
 
-                user_level_texts[nickname]['texts'].append(words)
-                user_level_texts[nickname]['raw'].append(raw_text)
-                user_level_texts[nickname]["label"].append(int(session["label"]["PHQ8_Binary"]))
+    def generate_indexes(self):
+        self.indexes_per_user = {u: [] for u in self.user_level_texts.keys()}
+        self.indexes_with_user = []
+        for u, data in self.user_level_texts.items():
+            user_posts = data['texts']
 
+            # Rolling window of datapoints: chunks with overlapping posts
+            nr_post_groups = len(user_posts)
+            if self.post_groups_per_user:
+                nr_post_groups = min(self.post_groups_per_user, nr_post_groups)
+            if self.keep_first_batches:
+                # Generate datapoints for first posts, before a complete chunk
+                for i in range(1, min(self.posts_per_group, nr_post_groups - 1)):
+                    self.indexes_per_user[u].append(range(self.post_offset, i + self.post_offset))
+                    self.indexes_with_user.append((u, range(self.post_offset, i + self.post_offset)))
 
-        return user_level_texts, subjects_split
-
-    def prepare_data(self, test_data_object, nickname=None):
-        user_level_texts, subjects_split = self.load_daic_data(test_data_object, nickname=nickname)
-        for u in user_level_texts:
-            if u not in self.data:
-                self.data[u] = {k: [] for k in user_level_texts[u].keys()}
-            for k in user_level_texts[u].keys():
-                self.data[u][k].extend(user_level_texts[u][k])
-        self.subjects_split['test'].extend(subjects_split['test'])
-        self.subjects_split['test'] = list(set(self.subjects_split['test']))
-        self._post_indexes_per_user()
+            for i in range(nr_post_groups):
+                # Stop at the last complete chunk
+                if i + self.posts_per_group + self.post_offset > len(user_posts):
+                    break
+                self.indexes_per_user[u].append(range(i + self.post_offset, min(i + self.posts_per_group + self.post_offset, len(user_posts))))
+                self.indexes_with_user.append((u, range(i + self.post_offset, min(i + self.posts_per_group + self.post_offset, len(user_posts)))))
         self.on_epoch_end()
-    
+
+
+    def __encode_text__(self, tokens, raw_text):
+        # Using 1 value for UNK token
+        encoded_tokens = [self.vocabulary.get(w, 1) for w in tokens]
+        encoded_emotions = encode_emotions(tokens, self.emotion_lexicon, self.emotions)
+        encoded_pronouns = encode_pronouns(tokens, self.pronouns)
+        encoded_stopwords = encode_stopwords(tokens, self.stopwords_list)
+        if not self.compute_liwc:
+            encoded_liwc = None
+        else:
+            encoded_liwc = encode_liwc_categories(tokens, self.liwc_categories, self.liwc_words_for_categories)
+
+        return (encoded_tokens, encoded_emotions, encoded_pronouns, encoded_stopwords, encoded_liwc,
+                )
+
+    def __len__(self):
+        'Denotes the number of batches per epoch'
+        if self.keep_last_batch:
+            return int(np.ceil(len(self.indexes) / self.batch_size))  # + 1 to not discard last batch
+        return int((len(self.indexes)) / self.batch_size)
+
     def __getitem__(self, index):
         'Generate one batch of data'
-        # Reset generated labels
-        if index == 0:
-            self.generated_labels = []
         # Generate indexes of the batch
         indexes = self.indexes[index * self.batch_size:(index + 1) * self.batch_size]
-        # Find users
-        user_indexes = [t[0] for t in indexes]
-        users = set([self.subjects_split[self.set][i] for i in user_indexes
-                     if self.subjects_split[self.set][
-                         i] in self.data.keys()])  # TODO: maybe needs a warning that user is missing
-        post_indexes_per_user = {u: [] for u in users}
-        # Sample post ids
-        for u, post_indexes in indexes:
-            user = self.subjects_split[self.set][u]
-            # Note: was bug here - changed it into a list
-            post_indexes_per_user[user].append(post_indexes)
+        X, y = self.__data_generation_hierarchical__(indexes)
+        return X, y
 
-        X, s, y = self.__data_generation_hierarchical__(users, post_indexes_per_user)
-        if self.return_subjects:
-            return X, s, y
-        else:
-            return X, y
+    def on_epoch_end(self):
+        'Updates indexes after each epoch'
+        self.indexes = self.indexes_with_user
+        if self.shuffle:
+            np.random.shuffle(self.indexes)
+
+    def __data_generation_hierarchical__(self, indexes: list):
+        """
+        Generates data containing batch_size samples
+        Args:
+            indexes: ()
+
+        Returns:
+
+        """
+        ''  # X : (n_samples, *dim, n_channels)
+        user_tokens = []
+        user_categ_data = []
+        user_sparse_data = []
+
+        labels = []
+        for user, range_indexes in indexes:
+
+            all_words = []
+            all_raw_texts = []
+            liwc_scores = []
+
+            # PHQ8_Binary
+            if 'label' in self.user_level_texts[user]:
+                label = self.user_level_texts[user]['label']
+            else:
+                label = None
+
+            # Sample
+            texts = [self.user_level_texts[user]['texts'][i] for i in range_indexes]
+            if 'liwc' in self.user_level_texts[user] and not self.compute_liwc:
+                liwc_selection = [self.user_level_texts[user]['liwc'][i] for i in range_indexes]
+            raw_texts = [self.user_level_texts[user]['raw'][i] for i in range_indexes]
+
+            all_words.append(texts)
+            if 'liwc' in self.user_level_texts[user] and not self.compute_liwc:
+                liwc_scores.append(liwc_selection)
+            all_raw_texts.append(raw_texts)
+
+            for i, words in enumerate(all_words):
+                tokens_data = []
+                categ_data = []
+                sparse_data = []
+
+                raw_text = all_raw_texts[i]
+                words = all_words[i]
+
+                for p, posting in enumerate(words):
+                    encoded_tokens, encoded_emotions, encoded_pronouns, encoded_stopwords, encoded_liwc, \
+                        = self.__encode_text__(words[p], raw_text[p])
+                    if 'liwc' in self.user_level_texts[user] and not self.compute_liwc:
+                        liwc = liwc_scores[i][p]
+                    else:
+                        liwc = encoded_liwc
+
+                    tokens_data.append(encoded_tokens)
+
+                    categ_data.append(encoded_emotions + [encoded_pronouns] + liwc)
+                    sparse_data.append(encoded_stopwords)
+
+                # For each range
+                tokens_data_padded = np.array(sequence.pad_sequences(tokens_data, maxlen=self.seq_len,
+                                                                     padding=self.padding,
+                                                                     truncating=self.padding))
+                user_tokens.append(tokens_data_padded)
+
+                user_categ_data.append(categ_data)
+                user_sparse_data.append(sparse_data)
+
+                labels.append(label)
+
+        user_tokens = sequence.pad_sequences(user_tokens,
+                                             maxlen=self.posts_per_group,
+                                             value=self.pad_value)
+        user_tokens = np.rollaxis(np.dstack(user_tokens), -1)
+        user_categ_data = sequence.pad_sequences(user_categ_data,
+                                                 maxlen=self.posts_per_group,
+                                                 value=self.pad_value, dtype='float32')
+        user_categ_data = np.rollaxis(np.dstack(user_categ_data), -1)
+
+        user_sparse_data = sequence.pad_sequences(user_sparse_data,
+                                                  maxlen=self.posts_per_group,
+                                                  value=self.pad_value)
+        user_sparse_data = np.rollaxis(np.dstack(user_sparse_data), -1)
+
+        labels = np.array(labels, dtype=np.float32)
+
+        return (user_tokens, user_categ_data, user_sparse_data), labels

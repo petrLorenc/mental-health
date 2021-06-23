@@ -1,7 +1,7 @@
 import json
 
 from loader.DataGenerator import DataGenerator
-from loader.DAICDataGenerator_v2 import DAICDataGenerator_v2
+from loader.DAICDataGenerator import DAICDataGenerator
 
 
 def initialize_datasets_erisk(user_level_data, subjects_split, hyperparams, hyperparams_features):
@@ -50,14 +50,14 @@ def initialize_datasets_daic(
     with open(path_train, "r") as f:
         data_json = json.load(f)
 
-    data_generator_train = DAICDataGenerator_v2(hyperparams_features=hyperparams_features,
-                                                seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
-                                                max_posts_per_user=None,
-                                                posts_per_group=hyperparams['posts_per_group'],
-                                                post_groups_per_user=None,
-                                                shuffle=True,
-                                                compute_liwc=True,
-                                                keep_first_batches=False)
+    data_generator_train = DAICDataGenerator(hyperparams_features=hyperparams_features,
+                                             seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
+                                             max_posts_per_user=None,
+                                             posts_per_group=hyperparams['posts_per_group'],
+                                             post_groups_per_user=None,
+                                             shuffle=True,
+                                             compute_liwc=True,
+                                             keep_first_batches=False)
 
     for session in data_json:
         data_generator_train.load_daic_data(session, nickname=session["label"]["Participant_ID"])
@@ -66,14 +66,14 @@ def initialize_datasets_daic(
     with open(path_valid, "r") as f:
         data_json = json.load(f)
 
-    data_generator_valid = DAICDataGenerator_v2(hyperparams_features=hyperparams_features,
-                                                seq_len=hyperparams['maxlen'], batch_size=1,
-                                                max_posts_per_user=None,
-                                                posts_per_group=hyperparams['posts_per_group'],
-                                                post_groups_per_user=None,
-                                                shuffle=False,
-                                                compute_liwc=True,
-                                                keep_first_batches=False)
+    data_generator_valid = DAICDataGenerator(hyperparams_features=hyperparams_features,
+                                             seq_len=hyperparams['maxlen'], batch_size=1,
+                                             max_posts_per_user=None,
+                                             posts_per_group=hyperparams['posts_per_group'],
+                                             post_groups_per_user=None,
+                                             shuffle=False,
+                                             compute_liwc=True,
+                                             keep_first_batches=False)
     for session in data_json:
         data_generator_valid.load_daic_data(session, nickname=session["label"]["Participant_ID"])
     data_generator_valid.generate_indexes()
@@ -81,14 +81,14 @@ def initialize_datasets_daic(
     with open(path_test, "r") as f:
         data_json = json.load(f)
 
-    data_generator_test = DAICDataGenerator_v2(hyperparams_features=hyperparams_features,
-                                               seq_len=hyperparams['maxlen'], batch_size=1,
-                                               max_posts_per_user=None,
-                                               posts_per_group=hyperparams['posts_per_group'],
-                                               post_groups_per_user=None,
-                                               shuffle=False,
-                                               compute_liwc=True,
-                                               keep_first_batches=False)
+    data_generator_test = DAICDataGenerator(hyperparams_features=hyperparams_features,
+                                            seq_len=hyperparams['maxlen'], batch_size=1,
+                                            max_posts_per_user=None,
+                                            posts_per_group=hyperparams['posts_per_group'],
+                                            post_groups_per_user=None,
+                                            shuffle=False,
+                                            compute_liwc=True,
+                                            keep_first_batches=False)
     for session in data_json:
         data_generator_test.load_daic_data(session, nickname=session["label"]["Participant_ID"])
     data_generator_test.generate_indexes()

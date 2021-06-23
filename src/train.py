@@ -1,33 +1,31 @@
 from utils.logger import logger
+from train_utils.experiment import get_network_type, initialize_experiment
 
 import os
-import sys
-import json
 import pickle
 import logging
 import argparse
 
 print(os.getcwd())
 
-from comet_ml import Experiment, Optimizer
 from tensorflow.keras import callbacks
 from callbacks import FreezeLayer, WeightsHistory, LRHistory
 
 from model import build_hierarchical_model
 from load_save_model import save_model_and_params
-from loader.DataGenerator import DataGenerator
-from loader.DAICDataGenerator import DAICDataGenerator
-from loader.DAICDataGenerator_v2 import DAICDataGenerator_v2
 from loader.data_loading import load_erisk_data
 from resource_loading import load_NRC, load_LIWC, load_stopwords
+from train_utils.dataset import initialize_datasets_daic, initialize_datasets_erisk
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# os.environ['CUDA_VISIBLE_DEVICES'] = '-1' # When cudnn implementation not found, run this
-os.environ[
-    "CUDA_VISIBLE_DEVICES"] = "0"  # Note: when starting kernel, for gpu_available to be true, this needs to be run
-# only reserve 1 GPU
-os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
+# When cudnn implementation not found, run this
+# os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
+# Note: when starting kernel, for gpu_available to be true, this needs to be run only reserve 1 GPU
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 
 def train_model(model, hyperparams,
@@ -68,76 +66,6 @@ def train_model(model, hyperparams,
     return model, history
 
 
-def get_network_type(hyperparams):
-    if 'lstm' in hyperparams['ignore_layer']:
-        network_type = 'cnn'
-    else:
-        network_type = 'lstm'
-    if 'user_encoded' in hyperparams['ignore_layer']:
-        if 'bert_layer' not in hyperparams['ignore_layer']:
-            network_type = 'bert'
-        else:
-            network_type = 'extfeatures'
-    if hyperparams['hierarchical']:
-        hierarch_type = 'hierarchical'
-    else:
-        hierarch_type = 'seq'
-    return network_type, hierarch_type
-
-
-def initialize_experiment(hyperparams, nrc_lexicon_path, emotions, pretrained_embeddings_path,
-                          dataset_type, transfer_type, hyperparams_features):
-    # experiment = Experiment(api_key="eoBdVyznAhfg3bK9pZ58ZSXfv",
-    #                         project_name="mental", workspace="ananana", disabled=False)
-    # Create an experiment with your api key
-    experiment = Experiment(
-        api_key="6XP0ix9zkGMuM24VbrnVRHSbf",
-        project_name="general",
-        workspace="petr-lorenc",
-        disabled=False
-    )
-
-    experiment.log_parameters(hyperparams_features)
-
-    experiment.log_parameter('emotion_lexicon', nrc_lexicon_path)
-    experiment.log_parameter('emotions', emotions)
-    experiment.log_parameter('embeddings_path', pretrained_embeddings_path)
-    experiment.log_parameter('dataset_type', dataset_type)
-    experiment.log_parameter('transfer_type', transfer_type)
-    experiment.add_tag(dataset_type)
-    experiment.log_parameters(hyperparams)
-    network_type, hierarch_type = get_network_type(hyperparams)
-    experiment.add_tag(network_type)
-    experiment.add_tag(hierarch_type)
-
-    return experiment
-
-
-def initialize_datasets(user_level_data, subjects_split, hyperparams, hyperparams_features,
-                        validation_set, session=None):
-    data_generator_train = DataGenerator(user_level_data, subjects_split, set_type='train',
-                                         hyperparams_features=hyperparams_features,
-                                         seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
-                                         posts_per_group=hyperparams['posts_per_group'],
-                                         post_groups_per_user=hyperparams['post_groups_per_user'],
-                                         max_posts_per_user=hyperparams['posts_per_user'],
-                                         compute_liwc=True,
-                                         ablate_emotions='emotions' in hyperparams['ignore_layer'],
-                                         ablate_liwc='liwc' in hyperparams['ignore_layer'])
-    data_generator_valid = DataGenerator(user_level_data, subjects_split, set_type=validation_set,
-                                         hyperparams_features=hyperparams_features,
-                                         seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
-                                         posts_per_group=hyperparams['posts_per_group'],
-                                         post_groups_per_user=1,
-                                         max_posts_per_user=None,
-                                         shuffle=False,
-                                         compute_liwc=True,
-                                         ablate_emotions='emotions' in hyperparams['ignore_layer'],
-                                         ablate_liwc='liwc' in hyperparams['ignore_layer'])
-
-    return data_generator_train, data_generator_valid
-
-
 def initialize_model(hyperparams, hyperparams_features, word_embedding_type="random", session=None, transfer=False):
     if 'emotions' in hyperparams['ignore_layer']:
         emotions_dim = 0
@@ -171,15 +99,15 @@ def train(data_generator_train, data_generator_valid,
           version=0, epochs=1, start_epoch=0,
           session=None, model=None, transfer_layer=False,
           word_embedding_type="random"):
-    network_type, hierarch_type = get_network_type(hyperparams)
+    network_type, hierarchy_type = get_network_type(hyperparams)
     for feature in ['LIWC', 'emotions', 'numerical_dense_layer', 'sparse_feat_dense_layer', 'user_encoded']:
         if feature in hyperparams['ignore_layer']:
             network_type += "no%s" % feature
     if not transfer_layer:
-        model_path = '../resources/models/%s_%s_%s%d' % (network_type, dataset_type, hierarch_type, version)
+        model_path = '../resources/models/%s_%s_%s%d' % (network_type, dataset_type, hierarchy_type, version)
     else:
         model_path = '../resources/models/%s_%s_%s_transfer_%s%d' % (
-            network_type, dataset_type, hierarch_type, transfer_type, version)
+            network_type, dataset_type, hierarchy_type, transfer_type, version)
 
     if not model:
         if transfer_layer:
@@ -219,8 +147,10 @@ def train(data_generator_train, data_generator_valid,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train model')
     parser.add_argument('--version', metavar="-v", type=int, default=0, help='version of model')
-    parser.add_argument('--dataset', metavar="-d", type=str, default="daic", help='used dataset (supported "daic" or "erisk")')
-    parser.add_argument('--embeddings', type=str, default="random", help='used embeddings for words (supported "random" or "glove")')
+    parser.add_argument('--dataset', metavar="-d", type=str, default="daic",
+                        help='used dataset (supported "daic" or "erisk")')
+    parser.add_argument('--embeddings', type=str, default="random",
+                        help='used embeddings for words (supported "random" or "glove")')
     parser.add_argument('--epochs', metavar="-e", type=int, default=10, help='number of epochs')
     args = parser.parse_args()
 
@@ -273,55 +203,14 @@ if __name__ == '__main__':
         user_level_data, subjects_split, vocabulary = load_erisk_data(writings_df,
                                                                       hyperparams_features=hyperparams_features)
 
-        data_generator_train, data_generator_valid = initialize_datasets(user_level_data, subjects_split,
-                                                                         hyperparams, hyperparams_features,
-                                                                         validation_set="valid")
+        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_erisk(user_level_data,
+                                                                                                    subjects_split,
+                                                                                                    hyperparams,
+                                                                                                    hyperparams_features)
     elif dataset == "daic":
-        with open("../data/daic-woz/train_data.json", "r") as f:
-            data_json = json.load(f)
 
-        data_generator_train = DAICDataGenerator_v2(hyperparams_features=hyperparams_features,
-                                                    seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
-                                                    max_posts_per_user=None,
-                                                    posts_per_group=hyperparams['posts_per_group'],
-                                                    post_groups_per_user=None,
-                                                    shuffle=True,
-                                                    compute_liwc=True,
-                                                    keep_first_batches=False)
-
-        for session in data_json:
-            data_generator_train.load_daic_data(session, nickname=session["label"]["Participant_ID"])
-        data_generator_train.generate_indexes()
-
-        with open("../data/daic-woz/dev_data.json", "r") as f:
-            data_json = json.load(f)
-
-        data_generator_valid = DAICDataGenerator_v2(hyperparams_features=hyperparams_features,
-                                                    seq_len=hyperparams['maxlen'], batch_size=1,
-                                                    max_posts_per_user=None,
-                                                    posts_per_group=hyperparams['posts_per_group'],
-                                                    post_groups_per_user=None,
-                                                    shuffle=False,
-                                                    compute_liwc=True,
-                                                    keep_first_batches=False)
-        for session in data_json:
-            data_generator_valid.load_daic_data(session, nickname=session["label"]["Participant_ID"])
-        data_generator_valid.generate_indexes()
-
-        with open("../data/daic-woz/test_data.json", "r") as f:
-            data_json = json.load(f)
-
-        data_generator_test = DAICDataGenerator_v2(hyperparams_features=hyperparams_features,
-                                                   seq_len=hyperparams['maxlen'], batch_size=1,
-                                                   max_posts_per_user=None,
-                                                   posts_per_group=hyperparams['posts_per_group'],
-                                                   post_groups_per_user=None,
-                                                   shuffle=False,
-                                                   compute_liwc=True,
-                                                   keep_first_batches=False)
-        for session in data_json:
-            data_generator_test.load_daic_data(session, nickname=session["label"]["Participant_ID"])
-        data_generator_test.generate_indexes()
+        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic(hyperparams,
+                                                                                                   hyperparams_features)
 
     else:
         raise NotImplementedError(f"Dataset {dataset} not recognized")

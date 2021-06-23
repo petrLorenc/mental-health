@@ -53,7 +53,7 @@ def load_embeddings(path, embedding_dim, vocabulary_path, voc_size):
         coefs = np.asarray(values[-embedding_dim:], dtype='float32')
         word_i = voc.get(word)
         if word_i is not None:
-            embedding_matrix[word_i] = coefs
+            embedding_matrix[word_i + 2] = coefs  # + 2  because 0 is PAD and 1 is UNK
             cnt_inv += 1
     f.close()
 

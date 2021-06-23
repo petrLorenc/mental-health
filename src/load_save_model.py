@@ -4,7 +4,7 @@ from metrics import Metrics
 import json
 from tensorflow.keras.models import load_model
 from tensorflow.keras import optimizers
-from train import initialize_model
+
 
 
 def save_model_and_params(model, model_path, hyperparams, hyperparams_features):
@@ -42,6 +42,8 @@ def load_saved_model(model_path, hyperparams):
 
 
 def load_saved_model_weights(model_path, hyperparams, hyperparams_features, h5=False):
+    from train import initialize_model # to avoid cycle of dependencies
+
     metrics_class = Metrics(threshold=hyperparams['threshold'])
     dependencies = {
         'f1_m': metrics_class.f1_m,

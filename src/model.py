@@ -13,12 +13,23 @@ import numpy as np
 
 
 def build_hierarchical_model(hyperparams, hyperparams_features,
-                             emotions_dim, stopwords_list_dim, liwc_categories_dim,
+                             emotions_dim, stopwords_list_dim, liwc_categories_dim, word_embedding_type,
                              ignore_layer=[]):
-    embedding_matrix = np.random.random((hyperparams_features['max_features'], hyperparams_features['embedding_dim'])) - 0.5
+    if word_embedding_type == "random":
+        # dummy embedding matrix - ONLY FOR TESTING
+        embedding_matrix = np.random.random((hyperparams_features['max_features'] + 2, hyperparams_features['embedding_dim'])) - 0.5
+    elif word_embedding_type == "glove":
+        # real embedding matrix
+        embedding_matrix = load_embeddings(hyperparams_features['embeddings_path'],
+                                           hyperparams_features['embedding_dim'],
+                                           hyperparams_features['vocabulary_path'],
+                                           hyperparams_features['max_features'])
+    else:
+        raise NotImplementedError(f"Embeddings {word_embedding_type} not supported yet")
+
     # Post/sentence representation - word sequence
     tokens_features = Input(shape=(hyperparams['maxlen'],), name='word_seq')
-    embedding_layer = Embedding(hyperparams_features['max_features'],
+    embedding_layer = Embedding(hyperparams_features['max_features'] + 2,
                                 hyperparams_features['embedding_dim'],
                                 input_length=hyperparams['maxlen'],
                                 embeddings_regularizer=regularizers.l2(hyperparams['l2_embeddings']),

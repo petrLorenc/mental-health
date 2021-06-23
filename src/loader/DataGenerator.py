@@ -1,3 +1,5 @@
+from utils.logger import logger
+
 from tensorflow.keras.utils import Sequence
 import numpy as np
 import pickle
@@ -20,7 +22,7 @@ class DataGenerator(Sequence):
                  shuffle=True,
                  keep_last_batch=True, return_subjects=False, chunk_level_datapoints=True,
                  keep_first_batches=False,
-                 ablate_emotions=False, ablate_liwc=False, logger=None):
+                 ablate_emotions=False, ablate_liwc=False):
         'Initialization'
         self.seq_len = seq_len
         # Instantiate tokenizer
@@ -42,7 +44,6 @@ class DataGenerator(Sequence):
         self.pad_value = 0
         self.keep_first_batches = keep_first_batches  # in the rolling window case, whether it will keep
         self.chunk_level_datapoints = chunk_level_datapoints
-        self.logger = logger
         self.return_subjects = return_subjects
         self.vocabulary = load_vocabulary(hyperparams_features['vocabulary_path'])
         self.voc_size = hyperparams_features['max_features']
@@ -67,8 +68,7 @@ class DataGenerator(Sequence):
         self.indexes_with_user = []
         for u in range(len(self.subjects_split[self.set])):
             if self.subjects_split[self.set][u] not in self.data:
-                if self.logger:
-                    self.logger.warning("User %s has no posts in %s set. Ignoring.\n" % (
+                logger.warning("User %s has no posts in %s set. Ignoring.\n" % (
                         self.subjects_split[self.set][u], self.set))
                 continue
             user_posts = self.data[self.subjects_split[self.set][u]]['texts']
@@ -105,8 +105,8 @@ class DataGenerator(Sequence):
 
 
     def __encode_text__(self, tokens, raw_text):
-        # Using voc_size-1 value for OOV token
-        encoded_tokens = [self.vocabulary.get(w, self.voc_size - 1) for w in tokens]
+        # Using 1 value for UNK token
+        encoded_tokens = [self.vocabulary.get(w, 1) for w in tokens]
         encoded_emotions = encode_emotions(tokens, self.emotion_lexicon, self.emotions)
         encoded_pronouns = encode_pronouns(tokens, self.pronouns)
         encoded_stopwords = encode_stopwords(tokens, self.stopwords_list)

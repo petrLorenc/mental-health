@@ -3,8 +3,6 @@ import string
 import random
 from nltk.tokenize import RegexpTokenizer
 from loader.DataGenerator import DataGenerator
-import logging
-from loader.data_loading import load_erisk_server_data
 
 
 class DAICDataGenerator(DataGenerator):
@@ -12,11 +10,7 @@ class DAICDataGenerator(DataGenerator):
         self.data = {}
         self.subjects_split = {'test': []}
         self.tokenizer = RegexpTokenizer(r'\w+')
-        if 'logger' in kwargs:
-            self.logger = kwargs['logger']
-        else:
-            self.logger = None
-        super().__init__(self.data, self.subjects_split, set_type='test', logger=self.logger, **kwargs)
+        super().__init__(self.data, self.subjects_split, set_type='test', **kwargs)
         if test_data_object is not None:
             self.prepare_data(test_data_object, nickname=nickname)
 

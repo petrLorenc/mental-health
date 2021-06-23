@@ -1,3 +1,5 @@
+from utils.logger import logger
+
 import re
 import string
 import random
@@ -22,9 +24,10 @@ class DAICDataGenerator_v2(Sequence):
                  max_posts_per_user=None,
                  pronouns=["i", "me", "my", "mine", "myself"],
                  shuffle=True,
-                 keep_last_batch=True, return_subjects=False, chunk_level_datapoints=True,
+                 keep_last_batch=True,
                  keep_first_batches=False,
-                 ablate_emotions=False, ablate_liwc=False, logger=None):
+                 ablate_emotions=False, ablate_liwc=False
+                 ):
         'Initialization'
         self.seq_len = seq_len
         # Instantiate tokenizer
@@ -42,9 +45,6 @@ class DAICDataGenerator_v2(Sequence):
         self.padding = "pre"
         self.pad_value = 0
         self.keep_first_batches = keep_first_batches  # in the rolling window case, whether it will keep
-        self.chunk_level_datapoints = chunk_level_datapoints
-        self.logger = logger
-        self.return_subjects = return_subjects
         self.vocabulary = load_vocabulary(hyperparams_features['vocabulary_path'])
         self.voc_size = hyperparams_features['max_features']
         if ablate_emotions:
@@ -75,11 +75,11 @@ class DAICDataGenerator_v2(Sequence):
         for datapoint in session["transcripts"]:
             words = []
             raw_text = ""
-            if datapoint["speaker"] == "Participant":
-                if "value" in datapoint:
-                    tokenized_text = self.tokenizer.tokenize(datapoint["value"])
-                    words.extend(tokenized_text)
-                    raw_text += datapoint["value"]
+            # if datapoint["speaker"] == "Participant":
+            if "value" in datapoint:
+                tokenized_text = self.tokenizer.tokenize(datapoint["value"])
+                words.extend(tokenized_text)
+                raw_text += datapoint["value"]
 
                 self.user_level_texts[nickname]['texts'].append(words)
                 self.user_level_texts[nickname]['raw'].append(raw_text)
@@ -111,8 +111,8 @@ class DAICDataGenerator_v2(Sequence):
 
 
     def __encode_text__(self, tokens, raw_text):
-        # Using voc_size-1 value for OOV token
-        encoded_tokens = [self.vocabulary.get(w, self.voc_size - 1) for w in tokens]
+        # Using 1 value for UNK token
+        encoded_tokens = [self.vocabulary.get(w, 1) for w in tokens]
         encoded_emotions = encode_emotions(tokens, self.emotion_lexicon, self.emotions)
         encoded_pronouns = encode_pronouns(tokens, self.pronouns)
         encoded_stopwords = encode_stopwords(tokens, self.stopwords_list)

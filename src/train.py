@@ -11,11 +11,13 @@ print(os.getcwd())
 from tensorflow.keras import callbacks
 from callbacks import FreezeLayer, WeightsHistory, LRHistory
 
-from model import build_hierarchical_model
+from model.hierarchical_model import build_hierarchical_model
+from model.lstm import build_lstm_model
+
 from load_save_model import save_model_and_params
 from loader.data_loading import load_erisk_data
 from resource_loading import load_NRC, load_LIWC, load_stopwords
-from train_utils.dataset import initialize_datasets_daic, initialize_datasets_erisk
+from train_utils.dataset import initialize_datasets_daic, initialize_datasets_erisk, initialize_datasets_daic_raw
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
@@ -66,7 +68,7 @@ def train_model(model, hyperparams,
     return model, history
 
 
-def initialize_model(hyperparams, hyperparams_features, word_embedding_type="random", session=None, transfer=False):
+def initialize_model(hyperparams, hyperparams_features, word_embedding_type="random", session=None, transfer=False, model_type="hierarchical"):
     if 'emotions' in hyperparams['ignore_layer']:
         emotions_dim = 0
     else:
@@ -84,10 +86,16 @@ def initialize_model(hyperparams, hyperparams_features, word_embedding_type="ran
         stopwords_dim = len(stopwords_list)
 
     # Initialize model
-    model = build_hierarchical_model(hyperparams, hyperparams_features,
-                                     emotions_dim, stopwords_dim, liwc_categories_dim,
-                                     ignore_layer=hyperparams['ignore_layer'],
-                                     word_embedding_type=word_embedding_type)
+    if model_type == "hierarchical":
+        model = build_hierarchical_model(hyperparams, hyperparams_features,
+                                         emotions_dim, stopwords_dim, liwc_categories_dim,
+                                         ignore_layer=hyperparams['ignore_layer'],
+                                         word_embedding_type=word_embedding_type)
+    elif model_type == "lstm":
+        model = build_lstm_model(hyperparams, hyperparams_features)
+
+    else:
+        raise NotImplementedError(f"Type of model {model_type} is not supported yet")
 
     # model.summary()
     return model
@@ -98,7 +106,7 @@ def train(data_generator_train, data_generator_valid,
           experiment, dataset_type, transfer_type,
           version=0, epochs=1, start_epoch=0,
           session=None, model=None, transfer_layer=False,
-          word_embedding_type="random"):
+          word_embedding_type="random", model_type="hierarchical"):
     network_type, hierarchy_type = get_network_type(hyperparams)
     for feature in ['LIWC', 'emotions', 'numerical_dense_layer', 'sparse_feat_dense_layer', 'user_encoded']:
         if feature in hyperparams['ignore_layer']:
@@ -116,7 +124,8 @@ def train(data_generator_train, data_generator_valid,
             logger.info("Initializing model without transfer layers...\n")
         model = initialize_model(hyperparams, hyperparams_features,
                                  session=session, transfer=transfer_layer,
-                                 word_embedding_type=word_embedding_type)
+                                 word_embedding_type=word_embedding_type,
+                                 model_type=model_type)
     model.summary()
 
     print(model_path)
@@ -139,8 +148,49 @@ def train(data_generator_train, data_generator_valid,
     except:
         logger.error("Could not save model.\n")
 
-    res = model.evaluate(data_generator_test, batch_size=1, verbose=0)
-    logger.debug(res)
+    tp, tn, fp, fn = 0, 0, 0, 0
+
+    ratio_positive = []
+    ratio_negative = []
+
+    step = 0
+    for label, data in data_generator_test.yield_data_for_user():
+        if len(data) == 0:
+            continue
+        label = label[0]
+        prediction = model.predict_on_batch(data)
+        normalized_prediction = [x[0] for x in map(lambda x: x > hyperparams["threshold"], prediction)]
+        ratio_of_depressed_sequences = sum(normalized_prediction)/len(normalized_prediction)
+        prediction_for_user = ratio_of_depressed_sequences > 0.15
+
+        if label == 1:
+            experiment.log_metric("test_ratio_for_1", ratio_of_depressed_sequences, step=step)
+        else:
+            experiment.log_metric("test_ratio_for_0", ratio_of_depressed_sequences, step=step)
+        step += 1
+
+        if prediction_for_user == 1 and label == 1:
+            tp += 1
+            ratio_positive.append(ratio_of_depressed_sequences)
+        elif prediction_for_user == 0 and label == 0:
+            tn += 1
+            ratio_negative.append(ratio_of_depressed_sequences)
+        elif prediction_for_user == 1 and label == 0:
+            fp += 1
+            ratio_negative.append(ratio_of_depressed_sequences)
+        elif prediction_for_user == 0 and label == 1:
+            fn += 1
+            ratio_positive.append(ratio_of_depressed_sequences)
+
+    # experiment.log_histogram_3d(ratio_positive, name="positive_ratios")
+    # experiment.log_histogram_3d(ratio_negative, name="negative_ratios")
+    experiment.log_metric("test_recall_based_on_ratio_1", float(tp)/float(tp + fn), step=step)
+    experiment.log_metric("test_recall_based_on_ratio_0", float(tn)/float(tn + fp), step=step)
+    experiment.log_metric("test_precision_based_on_ratio_1", float(tp)/float(tp + fp), step=step)
+    experiment.log_metric("test_precision_based_on_ratio_0", float(tn)/float(tn + fn), step=step)
+
+    # res = model.evaluate(data_generator_test, batch_size=1, verbose=1)
+    # logger.debug(res)
     return model, history
 
 
@@ -152,6 +202,7 @@ if __name__ == '__main__':
     parser.add_argument('--embeddings', type=str, default="random",
                         help='used embeddings for words (supported "random" or "glove")')
     parser.add_argument('--epochs', metavar="-e", type=int, default=10, help='number of epochs')
+    parser.add_argument('--type', metavar="-t", type=str, default="hierarchical", help="type of classification model (supported 'hierarchical' or 'lstm')")
     args = parser.parse_args()
 
     hyperparams = {"trainable_embeddings": True, "dense_bow_units": 20, "dense_sentence_units": 0,
@@ -166,8 +217,8 @@ if __name__ == '__main__':
                    "maxlen": 30,
                    "lstm_units": 64,
                    "lstm_units_user": 64,
-                   "posts_per_group": 10,
-                   "batch_size": 32,
+                   "max_posts_per_user": 10,
+                   "batch_size": 31,
 
                    "posts_per_user": None,
                    "post_groups_per_user": None, "padding": "pre",
@@ -208,10 +259,14 @@ if __name__ == '__main__':
                                                                                                     hyperparams,
                                                                                                     hyperparams_features)
     elif dataset == "daic":
-
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic(hyperparams,
-                                                                                                   hyperparams_features)
-
+        if args.embeddings == "random" or args.embeddings == "globe":
+            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic(hyperparams,
+                                                                                                       hyperparams_features)
+        elif args.embeddings == "use":
+            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic_raw(hyperparams,
+                                                                                                       hyperparams_features)
+        else:
+            raise NotImplementedError(f"Rmbeddings {args.embeddings} not implemented yet")
     else:
         raise NotImplementedError(f"Dataset {dataset} not recognized")
 
@@ -224,4 +279,5 @@ if __name__ == '__main__':
           transfer_type=transfer_type,
           version=args.version,
           epochs=args.epochs,
-          word_embedding_type=args.embeddings)
+          word_embedding_type=args.embeddings,
+          model_type=args.type)

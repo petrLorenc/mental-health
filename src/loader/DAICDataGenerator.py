@@ -20,8 +20,8 @@ class DAICDataGenerator(Sequence):
                  hyperparams_features,
                  batch_size, seq_len,
                  compute_liwc=False,
-                 post_groups_per_user=None, posts_per_group=10, post_offset=0,
-                 max_posts_per_user=None,
+                 post_groups_per_user=None, post_offset=0,
+                 max_posts_per_user=10,
                  pronouns=["i", "me", "my", "mine", "myself"],
                  shuffle=True,
                  keep_last_batch=True,
@@ -41,7 +41,6 @@ class DAICDataGenerator(Sequence):
         self.max_posts_per_user = max_posts_per_user
         self.post_groups_per_user = post_groups_per_user
         self.post_offset = post_offset
-        self.posts_per_group = posts_per_group
         self.padding = "pre"
         self.pad_value = 0
         self.keep_first_batches = keep_first_batches  # in the rolling window case, whether it will keep
@@ -97,16 +96,16 @@ class DAICDataGenerator(Sequence):
                 nr_post_groups = min(self.post_groups_per_user, nr_post_groups)
             if self.keep_first_batches:
                 # Generate datapoints for first posts, before a complete chunk
-                for i in range(1, min(self.posts_per_group, nr_post_groups - 1)):
+                for i in range(1, min(self.max_posts_per_user, nr_post_groups - 1)):
                     self.indexes_per_user[u].append(range(self.post_offset, i + self.post_offset))
                     self.indexes_with_user.append((u, range(self.post_offset, i + self.post_offset)))
 
             for i in range(nr_post_groups):
                 # Stop at the last complete chunk
-                if i + self.posts_per_group + self.post_offset > len(user_posts):
+                if i + self.max_posts_per_user + self.post_offset > len(user_posts):
                     break
-                self.indexes_per_user[u].append(range(i + self.post_offset, min(i + self.posts_per_group + self.post_offset, len(user_posts))))
-                self.indexes_with_user.append((u, range(i + self.post_offset, min(i + self.posts_per_group + self.post_offset, len(user_posts)))))
+                self.indexes_per_user[u].append(range(i + self.post_offset, min(i + self.max_posts_per_user + self.post_offset, len(user_posts))))
+                self.indexes_with_user.append((u, range(i + self.post_offset, min(i + self.max_posts_per_user + self.post_offset, len(user_posts)))))
         self.on_epoch_end()
 
 
@@ -121,8 +120,7 @@ class DAICDataGenerator(Sequence):
         else:
             encoded_liwc = encode_liwc_categories(tokens, self.liwc_categories, self.liwc_words_for_categories)
 
-        return (encoded_tokens, encoded_emotions, encoded_pronouns, encoded_stopwords, encoded_liwc,
-                )
+        return encoded_tokens, encoded_emotions, encoded_pronouns, encoded_stopwords, encoded_liwc
 
     def __len__(self):
         'Denotes the number of batches per epoch'
@@ -214,19 +212,99 @@ class DAICDataGenerator(Sequence):
                 labels.append(label)
 
         user_tokens = sequence.pad_sequences(user_tokens,
-                                             maxlen=self.posts_per_group,
+                                             maxlen=self.max_posts_per_user,
                                              value=self.pad_value)
         user_tokens = np.rollaxis(np.dstack(user_tokens), -1)
         user_categ_data = sequence.pad_sequences(user_categ_data,
-                                                 maxlen=self.posts_per_group,
+                                                 maxlen=self.max_posts_per_user,
                                                  value=self.pad_value, dtype='float32')
         user_categ_data = np.rollaxis(np.dstack(user_categ_data), -1)
 
         user_sparse_data = sequence.pad_sequences(user_sparse_data,
-                                                  maxlen=self.posts_per_group,
+                                                  maxlen=self.max_posts_per_user,
                                                   value=self.pad_value)
         user_sparse_data = np.rollaxis(np.dstack(user_sparse_data), -1)
 
         labels = np.array(labels, dtype=np.float32)
 
         return (user_tokens, user_categ_data, user_sparse_data), labels
+
+    def yield_data_for_user(self):
+        for user, index_array in self.indexes_per_user.items():
+            if len(index_array) == 0:
+                continue
+
+            user_tokens = []
+            user_categ_data = []
+            user_sparse_data = []
+
+            # PHQ8_Binary
+            if 'label' in self.user_level_texts[user]:
+                label = self.user_level_texts[user]['label']
+            else:
+                label = None
+
+            for range_indexes in index_array:
+                if len(index_array) == 0:
+                    continue
+
+                all_words = []
+                all_raw_texts = []
+                liwc_scores = []
+
+                # Sample
+                texts = [self.user_level_texts[user]['texts'][i] for i in range_indexes]
+                if 'liwc' in self.user_level_texts[user] and not self.compute_liwc:
+                    liwc_selection = [self.user_level_texts[user]['liwc'][i] for i in range_indexes]
+                raw_texts = [self.user_level_texts[user]['raw'][i] for i in range_indexes]
+
+                all_words.append(texts)
+                if 'liwc' in self.user_level_texts[user] and not self.compute_liwc:
+                    liwc_scores.append(liwc_selection)
+                all_raw_texts.append(raw_texts)
+
+                for i, words in enumerate(all_words):
+                    tokens_data = []
+                    categ_data = []
+                    sparse_data = []
+
+                    raw_text = all_raw_texts[i]
+                    words = all_words[i]
+
+                    for p, posting in enumerate(words):
+                        encoded_tokens, encoded_emotions, encoded_pronouns, encoded_stopwords, encoded_liwc, \
+                            = self.__encode_text__(words[p], raw_text[p])
+                        if 'liwc' in self.user_level_texts[user] and not self.compute_liwc:
+                            liwc = liwc_scores[i][p]
+                        else:
+                            liwc = encoded_liwc
+
+                        tokens_data.append(encoded_tokens)
+
+                        categ_data.append(encoded_emotions + [encoded_pronouns] + liwc)
+                        sparse_data.append(encoded_stopwords)
+
+                    # For each range
+                    tokens_data_padded = np.array(sequence.pad_sequences(tokens_data, maxlen=self.seq_len,
+                                                                         padding=self.padding,
+                                                                         truncating=self.padding))
+                    user_tokens.append(tokens_data_padded)
+
+                    user_categ_data.append(categ_data)
+                    user_sparse_data.append(sparse_data)
+
+            user_tokens = sequence.pad_sequences(user_tokens,
+                                                 maxlen=self.max_posts_per_user,
+                                                 value=self.pad_value)
+            user_tokens = np.rollaxis(np.dstack(user_tokens), -1)
+            user_categ_data = sequence.pad_sequences(user_categ_data,
+                                                     maxlen=self.max_posts_per_user,
+                                                     value=self.pad_value, dtype='float32')
+            user_categ_data = np.rollaxis(np.dstack(user_categ_data), -1)
+
+            user_sparse_data = sequence.pad_sequences(user_sparse_data,
+                                                      maxlen=self.max_posts_per_user,
+                                                      value=self.pad_value)
+            user_sparse_data = np.rollaxis(np.dstack(user_sparse_data), -1)
+
+            yield label, (user_tokens, user_categ_data, user_sparse_data)

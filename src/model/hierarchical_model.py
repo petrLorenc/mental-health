@@ -36,8 +36,7 @@ def build_hierarchical_model(hyperparams, hyperparams_features,
                                 weights=[embedding_matrix],
                                 trainable=hyperparams['trainable_embeddings'],
                                 name='embeddings_layer',
-                                mask_zero=True)(
-        tokens_features)
+                                mask_zero=True)(tokens_features)
     embedding_layer = Dropout(hyperparams['dropout'], name='embedding_dropout')(embedding_layer)
 
     lstm_layers = LSTM(hyperparams['lstm_units'],
@@ -65,17 +64,17 @@ def build_hierarchical_model(hyperparams, hyperparams_features,
                                                  name='sent_repr_norm')(sent_representation)
     sent_representation = Dropout(hyperparams['dropout'], name='sent_repr_dropout')(sent_representation)
 
-    # Other features 
+    # Other features
     numerical_features_history = Input(shape=(
-        hyperparams['posts_per_group'],
+        hyperparams['max_posts_per_user'],
         emotions_dim + 1 + liwc_categories_dim
     ), name='numeric_input_hist')  # emotions and pronouns
     sparse_features_history = Input(shape=(
-        hyperparams['posts_per_group'],
+        hyperparams['max_posts_per_user'],
         stopwords_list_dim
     ), name='sparse_input_hist')  # stopwords
 
-    posts_history_input = Input(shape=(hyperparams['posts_per_group'],
+    posts_history_input = Input(shape=(hyperparams['max_posts_per_user'],
                                        hyperparams['maxlen']
                                        ), name='hierarchical_word_seq_input')
 

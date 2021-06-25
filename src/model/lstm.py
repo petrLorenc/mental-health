@@ -1,106 +1,46 @@
-import json
 import numpy as np
 
-import tensorflow_hub as hub
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, TimeDistributed, Input
-from tensorflow.keras.utils import to_categorical
+import tensorflow_hub as hub
+import tensorflow.keras.backend as K
+from tensorflow.keras.metrics import AUC
+from tensorflow.keras.layers import LSTM, Concatenate, Lambda
+
+from metrics import Metrics
+
+module_url = "../resources/embeddings/use-4"
 
 
-module_url = "../resources/embedding/use-4"
-model = hub.load(module_url)
+def build_lstm_model(hyperparams, hyperparams_features):
 
-# class DummyModel:
-#     def __call__(self, *args, **kwargs):
-#         return np.random.random(3)
-# model = DummyModel()
+    # embedding_dim = hyperparams_features['embedding_dim']
+    emotions_dim = 512
 
+    n_sentences = hyperparams['max_posts_per_user']
+    # n_sentences = 4
 
-class LSTM_Network:
-    def __init__(self):
-        self.dim = 128
-        self.embeddings_size = 512
+    embedding_layer = hub.KerasLayer(module_url, trainable=True)
 
-        self.model = self.get_model()
+    input = tf.keras.layers.Input(shape=(n_sentences,), dtype=tf.string)
+    x = [embedding_layer(input[:, s]) for s in range(n_sentences)]
+    x = Concatenate(axis=1)(x)
+    x = tf.keras.layers.Reshape((n_sentences, emotions_dim))(x)
+    x = LSTM(hyperparams['lstm_units_user'], return_sequences=False)(x)
+    output = tf.keras.layers.Dense(1, activation="sigmoid")(x)
 
-    def get_model(self):
-        model = Sequential()
-        # model.add(TimeDistributed(hub.KerasLayer(module_url, dtype=tf.string, trainable=True, name="use", output_shape=(None, 512)), input_shape=(None, None, 1)))
-        model.add(LSTM(self.dim, return_sequences=False, input_shape=(None, self.embeddings_size)))
-        model.add(Dense(2, activation='sigmoid'))
-        model.summary()
-        model.compile(loss='categorical_crossentropy', optimizer='adam')
-        return model
-
-    def train_model(self, train_json):
-        X = []
-        y = []
-        for item in train_json:
-            sentences = []
-            for transcript in item["transcripts"]:
-                sentences.append(model([transcript["value"]]).numpy())
-
-            for i in range(1, len(sentences)):
-                temp_X = []
-                for ii in range(0, i):
-                    temp_X.append(sentences[ii])
-                if len(temp_X) > 0:
-                    X.append(temp_X)
-                    y.append([0, 1] if item["label"]["PHQ8_Binary"] == '0' else [1, 0])
-
-        X = np.asarray(X)
-        y = np.asarray(y)
-        print(X.shape)
-        print(y.shape)
-
-        def train_generator():
-            for _x, _y in zip(X, y):
-                # sequence_length = np.random.randint(10, 100)
-                # x_train = np.random.random((1000, sequence_length, 5))
-                # # y_train will depend on past 5 timesteps of x
-                # y_train = x_train[:, :, 0]
-                # for i in range(1, 5):
-                #     y_train[:, i:] += x_train[:, :-i, i]
-                # y_train = to_categorical(y_train > 2.5)
-                yield np.asarray(_x).reshape((1, -1, self.embeddings_size)), np.asarray(_y).reshape((1, 2))
-
-        self.model.fit_generator(train_generator(), steps_per_epoch=len(X), epochs=3, verbose=1)
-        # self.model.fit(X, y, batch_size=1, epochs=10, shuffle=False)
-
-    def predict(self, inp):
-        return self.model.predict(inp)
-
-    def test(self, test_json):
-        X = []
-        y = []
-        for item in test_json:
-            sentences = []
-            for transcript in item["transcripts"]:
-                sentences.append(model([transcript["value"]]).numpy())
-            X.append(sentences)
-            y.append(1 if item["label"]["PHQ_Binary"] == '0' else 0)
-
-        X = np.asarray(X)
-        y = np.asarray(y)
-
-        acc = []
-        for _x, _y in zip(X, y):
-            if len(_x) > 0:
-                pred_y = self.model.predict(np.asarray(_x).reshape((1, -1, self.embeddings_size)))[0]
-                pred_cls = np.argmax(pred_y)
-                acc.append(int(_y == pred_cls))
-
-        print(f"Accuracy: {sum(acc) / len(acc)}")
+    model = tf.keras.Model(inputs=input, outputs=output)
+    metrics_class = Metrics(threshold=hyperparams['threshold'])
+    model.compile(hyperparams['optimizer'], K.binary_crossentropy,
+                               metrics=[metrics_class.precision_m, metrics_class.recall_m,
+                                        metrics_class.f1_m, AUC()])
+    model.summary()
+    return model
 
 
 if __name__ == '__main__':
-    with open("../data/daic-woz/train_data.json", "r") as f:
-        train_json = json.load(f)
-    lstm = LSTM_Network()
-    lstm.train_model(train_json)
-    print(lstm.predict(np.random.random((1, 30, 3))))
-
-    with open("../data/daic-woz/test_data.json", "r") as f:
-        test_json = json.load(f)
-    lstm.test(test_json)
+    n_sentences = 4
+    model = build_lstm_model(hyperparams={"maxlen": n_sentences, "lstm_units_user": 64}, hyperparams_features=None)
+    sentences = [str(i) for i in range(n_sentences)]
+    X = [sentences, sentences[::-1]]  # 1 sample
+    print(model.predict(X))
+    # print(model.predict([[["a"], ["b"], ["c"]]]))

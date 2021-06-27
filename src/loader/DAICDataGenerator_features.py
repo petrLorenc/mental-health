@@ -108,7 +108,6 @@ class DAICDataGenerator(Sequence):
                 self.indexes_with_user.append((u, range(i + self.post_offset, min(i + self.max_posts_per_user + self.post_offset, len(user_posts)))))
         self.on_epoch_end()
 
-
     def __encode_text__(self, tokens, raw_text):
         # Using 1 value for UNK token
         encoded_tokens = [self.vocabulary.get(w, 1) for w in tokens]

@@ -10,14 +10,17 @@ print(os.getcwd())
 
 from tensorflow.keras import callbacks
 from callbacks import FreezeLayer, WeightsHistory, LRHistory
+import tensorflow as tf
+import numpy as np
 
 from model.hierarchical_model import build_hierarchical_model
 from model.lstm import build_lstm_model
+from model.bow_logistic_regression import build_bow_log_regression_model
 
 from load_save_model import save_model_and_params
 from loader.data_loading import load_erisk_data
 from resource_loading import load_NRC, load_LIWC, load_stopwords
-from train_utils.dataset import initialize_datasets_daic, initialize_datasets_erisk, initialize_datasets_daic_raw
+from train_utils.dataset import initialize_datasets_daic, initialize_datasets_erisk, initialize_datasets_daic_raw, initialize_datasets_daic_bow
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
@@ -94,6 +97,9 @@ def initialize_model(hyperparams, hyperparams_features, word_embedding_type="ran
     elif model_type == "lstm":
         model = build_lstm_model(hyperparams, hyperparams_features)
 
+    elif model_type == "log_regression" and word_embedding_type == "bow":
+        model = build_bow_log_regression_model(hyperparams, hyperparams_features)
+
     else:
         raise NotImplementedError(f"Type of model {model_type} is not supported yet")
 
@@ -159,9 +165,13 @@ def train(data_generator_train, data_generator_valid,
             continue
         label = label[0]
         prediction = model.predict_on_batch(data)
-        normalized_prediction = [x[0] for x in map(lambda x: x > hyperparams["threshold"], prediction)]
-        ratio_of_depressed_sequences = sum(normalized_prediction)/len(normalized_prediction)
-        prediction_for_user = ratio_of_depressed_sequences > 0.15
+        prediction_for_user = [x[0] for x in map(lambda x: x > hyperparams["threshold"], prediction)]
+        if len(prediction_for_user) > 1:
+            ratio_of_depressed_sequences = sum(prediction_for_user)/len(prediction_for_user)
+            prediction_for_user = ratio_of_depressed_sequences > 0.15
+        else:
+            ratio_of_depressed_sequences = prediction[0]
+            prediction_for_user = prediction_for_user[0]
 
         if label == 1:
             experiment.log_metric("test_ratio_for_1", ratio_of_depressed_sequences, step=step)
@@ -184,11 +194,16 @@ def train(data_generator_train, data_generator_valid,
 
     # experiment.log_histogram_3d(ratio_positive, name="positive_ratios")
     # experiment.log_histogram_3d(ratio_negative, name="negative_ratios")
-    experiment.log_metric("test_recall_based_on_ratio_1", float(tp)/float(tp + fn), step=step)
-    experiment.log_metric("test_recall_based_on_ratio_0", float(tn)/float(tn + fp), step=step)
-    experiment.log_metric("test_precision_based_on_ratio_1", float(tp)/float(tp + fp), step=step)
-    experiment.log_metric("test_precision_based_on_ratio_0", float(tn)/float(tn + fn), step=step)
+    recall_1 = float(tp)/(float(tp + fn) + tf.keras.backend.epsilon())
+    recall_0 = float(tn)/(float(tn + fp) + tf.keras.backend.epsilon())
+    precision_0 = float(tp)/(float(tp + fp) + tf.keras.backend.epsilon())
+    precision_1 = float(tn)/(float(tn + fn) + tf.keras.backend.epsilon())
+    experiment.log_metric("test_recall_based_on_ratio_1", recall_1, step=step)
+    experiment.log_metric("test_recall_based_on_ratio_0", recall_0, step=step)
+    experiment.log_metric("test_precision_based_on_ratio_1", precision_0, step=step)
+    experiment.log_metric("test_precision_based_on_ratio_0", precision_1, step=step)
 
+    logger.debug(f"Recall_0: {recall_0}, Recall_1:{recall_1}, Precision_0:{precision_0}, Precision_0:{precision_1}")
     # res = model.evaluate(data_generator_test, batch_size=1, verbose=1)
     # logger.debug(res)
     return model, history
@@ -265,6 +280,10 @@ if __name__ == '__main__':
         elif args.embeddings == "use":
             data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic_raw(hyperparams,
                                                                                                        hyperparams_features)
+        elif args.embeddings == "bow":
+            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic_bow(hyperparams,
+                                                                                                       hyperparams_features)
+            hyperparams["bow_input_feature_size"] = data_generator_train.get_input_dimension()
         else:
             raise NotImplementedError(f"Rmbeddings {args.embeddings} not implemented yet")
     else:

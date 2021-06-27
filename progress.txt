@@ -1,0 +1,36 @@
+**
+cleaning
+
+**
+USE -> LSTM -> prediction on chunks  
+
+**
+evaluation of DAIC-WOZ -> classify one session not all chunks
+
+**
+compare vocabularies
+
+**
+BoW on chunks -> log regression
+
+**
+jupyter notebook - hiearchy model with CNN, BERT
+
+** 
+fasttext same as Globe
+
+**
+using emotions lexicons
+
+**
+using machine learning system for emotion classification
+
+**
+
+questionary
+
+server 18 - writings_df_T2_liwc.pkl  
+
+-test - writings_df_t3_2021_test_liwc.pkl
+
+- raw - /eRisk/data/eRISK2021_T3_training_data/training BDI/2020 data

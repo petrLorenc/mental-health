@@ -32,33 +32,33 @@ def load_LIWC(path):
     return liwc_dict
 
 
+# PAD and UNK included (index 0, 1)
 def load_vocabulary(path):
-    vocabulary_list = pickle.load(open(path, 'rb'))
     vocabulary_dict = {}
-    for i, w in enumerate(vocabulary_list):
-        vocabulary_dict[w] = i
+    with open(path, "r") as f:
+        for i, w in enumerate(f):
+            vocabulary_dict[w] = i
     return vocabulary_dict
 
 
-def load_embeddings(path, embedding_dim, vocabulary_path, voc_size):
+def load_embeddings(embeddings_path, embedding_dim, vocabulary):
     # random matrix with mean value = 0
-    voc = load_vocabulary(vocabulary_path)
-    embedding_matrix = np.random.random((len(voc) + 2, embedding_dim)) - 0.5  # voc + unk + pad value(0)
-    cnt_inv = 0
-    f = open(path, encoding='utf8')
-    for i, line in enumerate(f):
-        #         print(i)
-        values = line.split()
-        word = ''.join(values[:-embedding_dim])
-        coefs = np.asarray(values[-embedding_dim:], dtype='float32')
-        word_i = voc.get(word)
-        if word_i is not None:
-            embedding_matrix[word_i + 2] = coefs  # + 2  because 0 is PAD and 1 is UNK
-            cnt_inv += 1
-    f.close()
+    embedding_matrix = np.random.random((len(vocabulary), embedding_dim)) - 0.5
+    not_found_words_cnt = 0
+    with open(embeddings_path, encoding='utf8') as f:
+        for i, line in enumerate(f):
+            values = line.split()
+            word = values[0]
+            # -embedding_dim because of tokens with spaces (like ". . .")
+            coefs = np.asarray(values[-embedding_dim:], dtype='float32')
+            word_i = vocabulary.get(word)
+            if word_i is not None:
+                embedding_matrix[word_i] = coefs
+            else:
+                not_found_words_cnt += 1
 
-    print('Total %s word vectors.' % len(embedding_matrix))
-    print('Words not found in embedding space %d' % (len(embedding_matrix) - cnt_inv))
+    print(f'Total {len(embedding_matrix)} word vectors.')
+    print(f'Words not found in embedding space {not_found_words_cnt}')
 
     return embedding_matrix
 

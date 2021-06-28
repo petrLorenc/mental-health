@@ -7,7 +7,7 @@ from tensorflow.keras import optimizers
 from tensorflow.keras import backend as K
 from tensorflow.keras.metrics import AUC
 from metrics import Metrics
-from resource_loading import load_embeddings
+from resource_loading import load_embeddings, load_vocabulary
 
 import numpy as np
 
@@ -20,10 +20,10 @@ def build_hierarchical_model(hyperparams, hyperparams_features,
         embedding_matrix = np.random.random((hyperparams_features['max_features'] + 2, hyperparams_features['embedding_dim'])) - 0.5
     elif word_embedding_type == "glove":
         # real embedding matrix
-        embedding_matrix = load_embeddings(hyperparams_features['embeddings_path'],
-                                           hyperparams_features['embedding_dim'],
-                                           hyperparams_features['vocabulary_path'],
-                                           hyperparams_features['max_features'])
+        vocabulary = load_vocabulary(hyperparams_features["vocabulary_path"])
+        embedding_matrix = load_embeddings(embeddings_path=hyperparams_features['embeddings_path'],
+                                           embedding_dim=hyperparams_features['embedding_dim'],
+                                           vocabulary=vocabulary)
     else:
         raise NotImplementedError(f"Embeddings {word_embedding_type} not supported yet")
 
@@ -60,8 +60,7 @@ def build_hierarchical_model(hyperparams, hyperparams_features,
         sent_representation = lstm_layers
 
     if 'batchnorm' not in ignore_layer:
-        sent_representation = BatchNormalization(axis=1, momentum=hyperparams['norm_momentum'],
-                                                 name='sent_repr_norm')(sent_representation)
+        sent_representation = BatchNormalization(axis=1, momentum=hyperparams['norm_momentum'], name='sent_repr_norm')(sent_representation)
     sent_representation = Dropout(hyperparams['dropout'], name='sent_repr_dropout')(sent_representation)
 
     # Other features

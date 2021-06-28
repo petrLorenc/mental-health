@@ -1,4 +1,4 @@
-import datasets    
+import datasets
 from sklearn.metrics import precision_score, recall_score, f1_score
 import numpy as np
 
@@ -46,13 +46,14 @@ Examples:
     'erde5': 0.0,
     'erde50': 0.0}
 """
-    
+
+
 def _penalty(k, p=0.0078):
     return -1 + 2 / (1 + np.exp(-p * (k - 1)))
 
+
 def _lc(k, o):
     return 1 - (1 / (1 + np.exp(k - o)))
-
 
 
 class EriskScoresT1T2(datasets.Metric):
@@ -64,16 +65,16 @@ class EriskScoresT1T2(datasets.Metric):
             features=datasets.Features({
                 'predictions': datasets.Value('int64'),
                 'references': datasets.DatasetDict({'label': datasets.Value('int64'),
-                               'user': datasets.Value('string')
-                              })
+                                                    'user': datasets.Value('string')
+                                                    })
             }),
             codebase_urls=[],
             reference_urls=[],
         )
-    
+
     def _latency(self, predictions, references, posts_per_datapoint):
-        assert(len(predictions)==len(references)), \
-               "Number of predictions not equal to number of references: %d vs %d." % (len(predictions), len(references))
+        assert (len(predictions) == len(references)), \
+            "Number of predictions not equal to number of references: %d vs %d." % (len(predictions), len(references))
 
         predictions_per_user = {}
         labels_per_user = {}
@@ -85,7 +86,7 @@ class EriskScoresT1T2(datasets.Metric):
                 predictions_per_user[u] = []
             predictions_per_user[u].append(p)
             if u in labels_per_user:
-                assert(labels_per_user[u] == l), "Inconsistent labels for same user: %s" % u
+                assert (labels_per_user[u] == l), "Inconsistent labels for same user: %s" % u
             else:
                 labels_per_user[u] = l
         users = list(labels_per_user.keys())
@@ -103,15 +104,15 @@ class EriskScoresT1T2(datasets.Metric):
                 latency += posts_per_datapoint
                 p = predictions_per_user[u][i]
                 i += 1
-                
+
             latencies.append(latency)
         median_penalty = _penalty(np.median(latencies))
         print(latencies, median_penalty)
         return median_penalty
-    
+
     def _erde(self, predictions, references, posts_per_datapoint, o):
-        assert(len(predictions)==len(references)), \
-               "Number of predictions not equal to number of references: %d vs %d." % (len(predictions), len(references))
+        assert (len(predictions) == len(references)), \
+            "Number of predictions not equal to number of references: %d vs %d." % (len(predictions), len(references))
 
         predictions_per_user = {}
         labels_per_user = {}
@@ -123,7 +124,7 @@ class EriskScoresT1T2(datasets.Metric):
                 predictions_per_user[u] = []
             predictions_per_user[u].append(p)
             if u in labels_per_user:
-                assert(labels_per_user[u] == l), "Inconsistent labels for same user: %s" % u
+                assert (labels_per_user[u] == l), "Inconsistent labels for same user: %s" % u
             else:
                 labels_per_user[u] = l
         users = list(labels_per_user.keys())
@@ -139,15 +140,14 @@ class EriskScoresT1T2(datasets.Metric):
                 latency += posts_per_datapoint
                 p = predictions_per_user[u][i]
                 i += 1
-                
+
             penalties.append(latency)
         erde = np.median([_lc(p, o) for p in penalties])
         return erde
-        
 
     def _compute(self, predictions, references, posts_per_datapoint):
-        assert(len(predictions)==len(references)), \
-               "Number of predictions not equal to number of references: %d vs %d." % (len(predictions), len(references))
+        assert (len(predictions) == len(references)), \
+            "Number of predictions not equal to number of references: %d vs %d." % (len(predictions), len(references))
         predictions_per_user = {}
         labels_per_user = {}
         for i in range(len(predictions)):
@@ -159,7 +159,7 @@ class EriskScoresT1T2(datasets.Metric):
             # User-level prediction is 1 if any 1 was emitted, otherwise it's 0
             predictions_per_user[u] = (p or predictions_per_user[u])
             if u in labels_per_user:
-                assert(labels_per_user[u] == l), "Inconsistent labels for same user: %s" % u
+                assert (labels_per_user[u] == l), "Inconsistent labels for same user: %s" % u
             else:
                 labels_per_user[u] = l
         users = list(labels_per_user.keys())
@@ -167,8 +167,8 @@ class EriskScoresT1T2(datasets.Metric):
         y_pred = [predictions_per_user[u] for u in users]
         penalty_score = self._latency(predictions, references, posts_per_datapoint)
         return {"precision": precision_score(y_true, y_pred),
-               "recall": recall_score(y_true, y_pred),
-               "f1": f1_score(y_true, y_pred),
-               "latency_f1": f1_score(y_true, y_pred) * (1 - penalty_score),
-               "erde5": self._erde(predictions, references, posts_per_datapoint, 5),
-               "erde50": self._erde(predictions, references, posts_per_datapoint, 50)}
+                "recall": recall_score(y_true, y_pred),
+                "f1": f1_score(y_true, y_pred),
+                "latency_f1": f1_score(y_true, y_pred) * (1 - penalty_score),
+                "erde5": self._erde(predictions, references, posts_per_datapoint, 5),
+                "erde50": self._erde(predictions, references, posts_per_datapoint, 50)}

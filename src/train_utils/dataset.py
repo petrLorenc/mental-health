@@ -1,43 +1,69 @@
 import json
 
-from loader.DataGenerator import DataGenerator
+from loader.EriskDataGenerator import EriskDataGenerator
+from loader.EriskDataGenerator_raw import EriskDataGeneratorRaw
 from loader.DAICDataGenerator_features import DAICDataGenerator
 from loader.DAICDataGenerator_raw import DAICDataGeneratorRaw
 from loader.DAICDataGenerator_bow import DAICDataGeneratorBoW
 
 
 def initialize_datasets_erisk(user_level_data, subjects_split, hyperparams, hyperparams_features):
-    data_generator_train = DataGenerator(user_level_data, subjects_split, set_type='train',
-                                         hyperparams_features=hyperparams_features,
-                                         seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
-                                         posts_per_group=hyperparams['posts_per_group'],
-                                         post_groups_per_user=hyperparams['post_groups_per_user'],
-                                         max_posts_per_user=hyperparams['posts_per_user'],
-                                         compute_liwc=True,
-                                         ablate_emotions='emotions' in hyperparams['ignore_layer'],
-                                         ablate_liwc='liwc' in hyperparams['ignore_layer'])
+    data_generator_train = EriskDataGenerator(user_level_data, subjects_split, set_type='train',
+                                              hyperparams_features=hyperparams_features,
+                                              seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
+                                              max_posts_per_user=hyperparams['max_posts_per_user'],
+                                              compute_liwc=True,
+                                              shuffle=False,
+                                              ablate_emotions='emotions' in hyperparams['ignore_layer'],
+                                              ablate_liwc='liwc' in hyperparams['ignore_layer'])
 
-    data_generator_valid = DataGenerator(user_level_data, subjects_split, set_type="valid",
-                                         hyperparams_features=hyperparams_features,
-                                         seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
-                                         posts_per_group=hyperparams['posts_per_group'],
-                                         post_groups_per_user=1,
-                                         max_posts_per_user=None,
-                                         shuffle=False,
-                                         compute_liwc=True,
-                                         ablate_emotions='emotions' in hyperparams['ignore_layer'],
-                                         ablate_liwc='liwc' in hyperparams['ignore_layer'])
+    data_generator_valid = EriskDataGenerator(user_level_data, subjects_split, set_type="valid",
+                                              hyperparams_features=hyperparams_features,
+                                              seq_len=hyperparams['maxlen'], batch_size=1,
+                                              max_posts_per_user=hyperparams['max_posts_per_user'],
+                                              shuffle=False,
+                                              compute_liwc=True,
+                                              ablate_emotions='emotions' in hyperparams['ignore_layer'],
+                                              ablate_liwc='liwc' in hyperparams['ignore_layer'])
 
-    data_generator_test = DataGenerator(user_level_data, subjects_split, set_type="test",
-                                        hyperparams_features=hyperparams_features,
-                                        seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
-                                        posts_per_group=hyperparams['posts_per_group'],
-                                        post_groups_per_user=1,
-                                        max_posts_per_user=None,
-                                        shuffle=False,
-                                        compute_liwc=True,
-                                        ablate_emotions='emotions' in hyperparams['ignore_layer'],
-                                        ablate_liwc='liwc' in hyperparams['ignore_layer'])
+    data_generator_test = EriskDataGenerator(user_level_data, subjects_split, set_type="test",
+                                             hyperparams_features=hyperparams_features,
+                                             seq_len=hyperparams['maxlen'], batch_size=1,
+                                             max_posts_per_user=hyperparams['max_posts_per_user'],
+                                             shuffle=False,
+                                             compute_liwc=True,
+                                             ablate_emotions='emotions' in hyperparams['ignore_layer'],
+                                             ablate_liwc='liwc' in hyperparams['ignore_layer'])
+    return data_generator_train, data_generator_valid, data_generator_test
+
+
+def initialize_datasets_erisk_raw(user_level_data, subjects_split, hyperparams, hyperparams_features):
+    data_generator_train = EriskDataGeneratorRaw(user_level_data, subjects_split, set_type='train',
+                                                 hyperparams_features=hyperparams_features,
+                                                 seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
+                                                 max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                 compute_liwc=True,
+                                                 shuffle=False,
+                                                 ablate_emotions='emotions' in hyperparams['ignore_layer'],
+                                                 ablate_liwc='liwc' in hyperparams['ignore_layer'])
+
+    data_generator_valid = EriskDataGeneratorRaw(user_level_data, subjects_split, set_type="valid",
+                                                 hyperparams_features=hyperparams_features,
+                                                 seq_len=hyperparams['maxlen'], batch_size=1,
+                                                 max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                 shuffle=False,
+                                                 compute_liwc=True,
+                                                 ablate_emotions='emotions' in hyperparams['ignore_layer'],
+                                                 ablate_liwc='liwc' in hyperparams['ignore_layer'])
+
+    data_generator_test = EriskDataGeneratorRaw(user_level_data, subjects_split, set_type="test",
+                                                hyperparams_features=hyperparams_features,
+                                                seq_len=hyperparams['maxlen'], batch_size=1,
+                                                max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                shuffle=False,
+                                                compute_liwc=True,
+                                                ablate_emotions='emotions' in hyperparams['ignore_layer'],
+                                                ablate_liwc='liwc' in hyperparams['ignore_layer'])
     return data_generator_train, data_generator_valid, data_generator_test
 
 
@@ -141,7 +167,6 @@ def initialize_datasets_daic_raw(
     data_generator_test.generate_indexes()
 
     return data_generator_train, data_generator_valid, data_generator_test
-
 
 
 def initialize_datasets_daic_bow(

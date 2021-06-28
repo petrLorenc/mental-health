@@ -6,7 +6,6 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras import optimizers
 
 
-
 def save_model_and_params(model, model_path, hyperparams, hyperparams_features):
     model.save_weights(model_path + "_weights.h5", save_format='h5')
     with open(model_path + '.hp.json', 'w+') as hpf:
@@ -15,16 +14,11 @@ def save_model_and_params(model, model_path, hyperparams, hyperparams_features):
         hpff.write(json.dumps(hyperparams_features))
 
 
-def load_params(model_path, general_config_path='config.json'):
+def load_params(model_path):
     with open(model_path + '.hp.json', 'r') as hpf:
         hyperparams = json.loads(hpf.read())
     with open(model_path + '.hpf.json', 'r') as hpff:
         hyperparams_features = json.loads(hpff.read())
-    with open(general_config_path) as f:
-        config = json.load(f)
-    for k in config:
-        if k not in hyperparams_features:
-            hyperparams_features[k] = config[k]
     hyperparams['optimizer'] = optimizers.Adam(lr=hyperparams['lr'],  # beta_1=0.9, beta_2=0.999, epsilon=0.0001,
                                                decay=hyperparams['decay'])
     return hyperparams, hyperparams_features

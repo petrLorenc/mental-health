@@ -1,4 +1,6 @@
+from utils.logger import logger
 from comet_ml import Experiment, Optimizer
+
 
 def get_network_type(hyperparams):
     if 'lstm' in hyperparams['ignore_layer']:
@@ -19,8 +21,7 @@ def get_network_type(hyperparams):
 
 def initialize_experiment(hyperparams, nrc_lexicon_path, emotions, pretrained_embeddings_path,
                           dataset_type, transfer_type, hyperparams_features):
-    # experiment = Experiment(api_key="eoBdVyznAhfg3bK9pZ58ZSXfv",
-    #                         project_name="mental", workspace="ananana", disabled=False)
+    logger.info("Preparing Experiment (Comet_ml)...\n")
     # Create an experiment with your api key
     experiment = Experiment(
         api_key="6XP0ix9zkGMuM24VbrnVRHSbf",

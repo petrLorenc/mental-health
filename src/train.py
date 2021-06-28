@@ -17,20 +17,33 @@ from model.hierarchical_model import build_hierarchical_model
 from model.lstm import build_lstm_model
 from model.bow_logistic_regression import build_bow_log_regression_model
 
-from load_save_model import save_model_and_params
+from load_save_model import save_model_and_params, load_params, load_saved_model_weights
 from loader.data_loading import load_erisk_data
 from resource_loading import load_NRC, load_LIWC, load_stopwords
-from train_utils.dataset import initialize_datasets_daic, initialize_datasets_erisk, initialize_datasets_daic_raw, initialize_datasets_daic_bow
+
+
+from train_utils.dataset import initialize_datasets_erisk
+from train_utils.dataset import initialize_datasets_erisk_raw
+
+from train_utils.dataset import initialize_datasets_daic
+from train_utils.dataset import initialize_datasets_daic_raw
+from train_utils.dataset import initialize_datasets_daic_bow
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
+if gpus:
+    tf.config.experimental.set_visible_devices(devices=gpus[1], device_type='GPU')
+    tf.config.experimental.set_memory_growth(device=gpus[1], enable=True)
 
 # When cudnn implementation not found, run this
 # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 # Note: when starting kernel, for gpu_available to be true, this needs to be run only reserve 1 GPU
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+# os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+
+print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 
 def train_model(model, hyperparams,
@@ -39,9 +52,6 @@ def train_model(model, hyperparams,
                 callback_list=frozenset(),
                 verbose=1):
     logger.info("Initializing callbacks...\n")
-    # Initialize callbacks
-    # freeze_layer = FreezeLayer(patience=hyperparams['freeze_patience'], set_to=not hyperparams['trainable_embeddings'])
-
     weights_history = WeightsHistory(experiment=experiment)
     lr_history = LRHistory(experiment=experiment)
     reduce_lr = callbacks.ReduceLROnPlateau(monitor='val_loss', factor=hyperparams['reduce_lr_factor'],
@@ -57,8 +67,7 @@ def train_model(model, hyperparams,
         'lr_schedule': lr_schedule
     }
 
-    logging.info('Train...')
-
+    logger.info("Training model...\n")
     history = model.fit_generator(data_generator_train,
                                   # steps_per_epoch=100,
                                   epochs=epochs, initial_epoch=start_epoch,
@@ -71,25 +80,14 @@ def train_model(model, hyperparams,
     return model, history
 
 
-def initialize_model(hyperparams, hyperparams_features, word_embedding_type="random", session=None, transfer=False, model_type="hierarchical"):
-    if 'emotions' in hyperparams['ignore_layer']:
-        emotions_dim = 0
-    else:
-        emotions = load_NRC(hyperparams_features['nrc_lexicon_path'])
-        emotions_dim = len(emotions)
-    if 'liwc' in hyperparams['ignore_layer']:
-        liwc_categories_dim = 0
-    else:
-        liwc_categories = load_LIWC(hyperparams_features['liwc_path'])
-        liwc_categories_dim = len(liwc_categories)
-    if 'stopwords' in hyperparams['ignore_layer']:
-        stopwords_dim = 0
-    else:
-        stopwords_list = load_stopwords(hyperparams_features['stopwords_path'])
-        stopwords_dim = len(stopwords_list)
+def initialize_model(hyperparams, hyperparams_features, word_embedding_type="random", model_type="hierarchical"):
+    logger.info("Initializing models...\n")
 
-    # Initialize model
     if model_type == "hierarchical":
+        emotions_dim = 0 if 'emotions' in hyperparams['ignore_layer'] else len(load_NRC(hyperparams_features['nrc_lexicon_path']))
+        liwc_categories_dim = 0 if 'liwc' in hyperparams['ignore_layer'] else len(load_LIWC(hyperparams_features['liwc_path']))
+        stopwords_dim = 0 if 'stopwords' in hyperparams['ignore_layer'] else len(load_stopwords(hyperparams_features['stopwords_path']))
+
         model = build_hierarchical_model(hyperparams, hyperparams_features,
                                          emotions_dim, stopwords_dim, liwc_categories_dim,
                                          ignore_layer=hyperparams['ignore_layer'],
@@ -109,33 +107,23 @@ def initialize_model(hyperparams, hyperparams_features, word_embedding_type="ran
 
 def train(data_generator_train, data_generator_valid,
           hyperparams, hyperparams_features,
-          experiment, dataset_type, transfer_type,
+          experiment, dataset_type,
           version=0, epochs=1, start_epoch=0,
-          session=None, model=None, transfer_layer=False,
-          word_embedding_type="random", model_type="hierarchical"):
+          model=None, word_embedding_type="random", model_type="hierarchical"):
     network_type, hierarchy_type = get_network_type(hyperparams)
     for feature in ['LIWC', 'emotions', 'numerical_dense_layer', 'sparse_feat_dense_layer', 'user_encoded']:
         if feature in hyperparams['ignore_layer']:
             network_type += "no%s" % feature
-    if not transfer_layer:
-        model_path = '../resources/models/%s_%s_%s%d' % (network_type, dataset_type, hierarchy_type, version)
-    else:
-        model_path = '../resources/models/%s_%s_%s_transfer_%s%d' % (
-            network_type, dataset_type, hierarchy_type, transfer_type, version)
+
+    model_path = f'../resources/models/{network_type}_{dataset_type}_{hierarchy_type}_{word_embedding_type}_{model_type}_{version}'
 
     if not model:
-        if transfer_layer:
-            logger.info("Initializing pretrained model...\n")
-        else:
-            logger.info("Initializing model without transfer layers...\n")
         model = initialize_model(hyperparams, hyperparams_features,
-                                 session=session, transfer=transfer_layer,
                                  word_embedding_type=word_embedding_type,
                                  model_type=model_type)
     model.summary()
 
     print(model_path)
-    logger.info("Training model...\n")
     model, history = train_model(model, hyperparams,
                                  data_generator_train, data_generator_valid,
                                  epochs=epochs, start_epoch=start_epoch,
@@ -154,6 +142,11 @@ def train(data_generator_train, data_generator_valid,
     except:
         logger.error("Could not save model.\n")
 
+    return model, history
+
+
+def test(model, data_generator_test, experiment, logger, hyperparams):
+    logger.info("Testing model...\n")
     tp, tn, fp, fn = 0, 0, 0, 0
 
     ratio_positive = []
@@ -163,11 +156,12 @@ def train(data_generator_train, data_generator_valid,
     for label, data in data_generator_test.yield_data_for_user():
         if len(data) == 0:
             continue
-        label = label[0]
+        if type(label) == list:
+            label = label[0]
         prediction = model.predict_on_batch(data)
         prediction_for_user = [x[0] for x in map(lambda x: x > hyperparams["threshold"], prediction)]
         if len(prediction_for_user) > 1:
-            ratio_of_depressed_sequences = sum(prediction_for_user)/len(prediction_for_user)
+            ratio_of_depressed_sequences = sum(prediction_for_user) / len(prediction_for_user)
             prediction_for_user = ratio_of_depressed_sequences > 0.15
         else:
             ratio_of_depressed_sequences = prediction[0]
@@ -194,31 +188,43 @@ def train(data_generator_train, data_generator_valid,
 
     # experiment.log_histogram_3d(ratio_positive, name="positive_ratios")
     # experiment.log_histogram_3d(ratio_negative, name="negative_ratios")
-    recall_1 = float(tp)/(float(tp + fn) + tf.keras.backend.epsilon())
-    recall_0 = float(tn)/(float(tn + fp) + tf.keras.backend.epsilon())
-    precision_0 = float(tp)/(float(tp + fp) + tf.keras.backend.epsilon())
-    precision_1 = float(tn)/(float(tn + fn) + tf.keras.backend.epsilon())
+    recall_1 = float(tp) / (float(tp + fn) + tf.keras.backend.epsilon())
+    recall_0 = float(tn) / (float(tn + fp) + tf.keras.backend.epsilon())
+    precision_0 = float(tp) / (float(tp + fp) + tf.keras.backend.epsilon())
+    precision_1 = float(tn) / (float(tn + fn) + tf.keras.backend.epsilon())
     experiment.log_metric("test_recall_based_on_ratio_1", recall_1, step=step)
     experiment.log_metric("test_recall_based_on_ratio_0", recall_0, step=step)
     experiment.log_metric("test_precision_based_on_ratio_1", precision_0, step=step)
     experiment.log_metric("test_precision_based_on_ratio_0", precision_1, step=step)
 
-    logger.debug(f"Recall_0: {recall_0}, Recall_1:{recall_1}, Precision_0:{precision_0}, Precision_0:{precision_1}")
-    # res = model.evaluate(data_generator_test, batch_size=1, verbose=1)
-    # logger.debug(res)
-    return model, history
+    logger.debug(f"Recall_0: {recall_0}, Recall_1:{recall_1}, Precision_0:{precision_0}, Precision_1:{precision_1}")
 
 
 if __name__ == '__main__':
+    logger.info("Loading command line arguments...\n")
+
+
+    def str2bool(v):
+        if isinstance(v, bool):
+            return v
+        if v.lower() in ('yes', 'true', 't', 'y', '1'):
+            return True
+        elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+            return False
+        else:
+            raise argparse.ArgumentTypeError('Boolean value expected.')
+
     parser = argparse.ArgumentParser(description='Train model')
     parser.add_argument('--version', metavar="-v", type=int, default=0, help='version of model')
-    parser.add_argument('--dataset', metavar="-d", type=str, default="daic",
-                        help='used dataset (supported "daic" or "erisk")')
-    parser.add_argument('--embeddings', type=str, default="random",
-                        help='used embeddings for words (supported "random" or "glove")')
+    parser.add_argument('--dataset', metavar="-d", type=str, default="daic", help='(supported "daic" or "erisk")')
+    parser.add_argument('--embeddings', type=str, default="random", help='(supported "random", "glove" or "use")')
     parser.add_argument('--epochs', metavar="-e", type=int, default=10, help='number of epochs')
-    parser.add_argument('--type', metavar="-t", type=str, default="hierarchical", help="type of classification model (supported 'hierarchical' or 'lstm')")
+    parser.add_argument('--model', metavar="-t", type=str, default="hierarchical", help="(supported 'hierarchical', 'lstm' or 'bow')")
+    parser.add_argument('--only_test', type=str2bool, help="Only test - loading trained model from disk")
+    parser.add_argument('--smaller_data', type=str2bool, help="Only test data (small portion)")
     args = parser.parse_args()
+    logger.info(args)
+    # todo control about possible combination of parameters??
 
     hyperparams = {"trainable_embeddings": True, "dense_bow_units": 20, "dense_sentence_units": 0,
                    "dense_numerical_units": 20, "filters": 100, "kernel_size": 5,
@@ -241,7 +247,7 @@ if __name__ == '__main__':
     hyperparams_features = {
         "max_features": 20000,
         "embedding_dim": 300,
-        "vocabulary_path": "../resources/generated/all_vocab_clpsych_erisk_stop_20000.pkl",
+        "vocabulary_path": "../resources/generated/vocab_20000_erisk.txt",
         "nrc_lexicon_path": "../resources/NRC-Emotion-Lexicon-Wordlevel-v0.92.txt",
         "liwc_path": "../resources/liwc.dic",
         "stopwords_path": "../resources/stopwords.txt",
@@ -265,38 +271,58 @@ if __name__ == '__main__':
     logger.info("Initializing datasets...\n")
     if dataset == "erisk":
         writings_df = pickle.load(open('../data/eRisk/writings_df_%s_liwc' % dataset_type, 'rb'))
+        if args.smaller_data:
+            writings_df = writings_df.sample(frac=0.1)
 
-        user_level_data, subjects_split, vocabulary = load_erisk_data(writings_df,
-                                                                      hyperparams_features=hyperparams_features)
+        liwc_dict = load_LIWC(hyperparams_features['liwc_path'])
+        liwc_categories = set(liwc_dict.keys())
+        user_level_data, subjects_split = load_erisk_data(writings_df, liwc_categories=liwc_categories)
 
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_erisk(user_level_data,
-                                                                                                    subjects_split,
-                                                                                                    hyperparams,
-                                                                                                    hyperparams_features)
+        if args.embeddings == "random" or args.embeddings == "glove":
+            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_erisk(user_level_data,
+                                                                                                        subjects_split,
+                                                                                                        hyperparams,
+                                                                                                        hyperparams_features)
+        elif args.embeddings == "use":
+            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_erisk_raw(user_level_data,
+                                                                                                            subjects_split,
+                                                                                                            hyperparams,
+                                                                                                            hyperparams_features)
+        else:
+            raise NotImplementedError(f"Embeddings {args.embeddings} not implemented yet")
     elif dataset == "daic":
-        if args.embeddings == "random" or args.embeddings == "globe":
+        if args.embeddings == "random" or args.embeddings == "glove":
             data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic(hyperparams,
                                                                                                        hyperparams_features)
         elif args.embeddings == "use":
             data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic_raw(hyperparams,
-                                                                                                       hyperparams_features)
+                                                                                                           hyperparams_features)
         elif args.embeddings == "bow":
             data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic_bow(hyperparams,
-                                                                                                       hyperparams_features)
+                                                                                                           hyperparams_features)
             hyperparams["bow_input_feature_size"] = data_generator_train.get_input_dimension()
         else:
-            raise NotImplementedError(f"Rmbeddings {args.embeddings} not implemented yet")
+            raise NotImplementedError(f"Embeddings {args.embeddings} not implemented yet")
     else:
         raise NotImplementedError(f"Dataset {dataset} not recognized")
 
-    train(data_generator_train=data_generator_train,
-          data_generator_valid=data_generator_valid,
-          hyperparams=hyperparams,
-          hyperparams_features=hyperparams_features,
-          experiment=experiment,
-          dataset_type=dataset_type,
-          transfer_type=transfer_type,
-          version=args.version,
-          epochs=args.epochs,
-          word_embedding_type=args.embeddings,
-          model_type=args.type)
+    if not args.only_test:
+        model, history = train(data_generator_train=data_generator_train,
+                               data_generator_valid=data_generator_valid,
+                               hyperparams=hyperparams,
+                               hyperparams_features=hyperparams_features,
+                               experiment=experiment,
+                               dataset_type=dataset_type,
+                               version=args.version,
+                               epochs=args.epochs,
+                               word_embedding_type=args.embeddings,
+                               model_type=args.model)
+    else:
+        network_type = "lstm"
+        hierarchy_type = "hierarchical"
+        model_path = f'../resources/models/{network_type}_{dataset_type}_{hierarchy_type}_{args.embeddings}_{args.model}_{args.version}'
+        # load saved model
+        hyperparams, hyperparams_features = load_params(model_path=model_path)
+        model = load_saved_model_weights(model_path=model_path, hyperparams=hyperparams, hyperparams_features=hyperparams_features, h5=True)
+
+    test(model=model, data_generator_test=data_generator_test, experiment=experiment, logger=logger, hyperparams=hyperparams)

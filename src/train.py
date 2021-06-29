@@ -106,21 +106,21 @@ def initialize_model(hyperparams, hyperparams_features, word_embedding_type="ran
 
 def train(data_generator_train, data_generator_valid,
           hyperparams, hyperparams_features,
-          experiment,
-          version=0, epochs=1, start_epoch=0,
-          model=None, word_embedding_type="random", model_type="hierarchical"):
-    model_path = f'../resources/models/{hierarchy_type}_{word_embedding_type}_{model_type}_{version}'
+          experiment, args,
+          start_epoch=0,
+          model=None):
+    model_path = f'../resources/models/{args.model}_{args.embeddings}_{args.version}_{args.note}'
 
     if not model:
         model = initialize_model(hyperparams, hyperparams_features,
-                                 word_embedding_type=word_embedding_type,
-                                 model_type=model_type)
+                                 word_embedding_type=args.embeddings,
+                                 model_type=args.model)
     model.summary()
 
     print(model_path)
     model, history = train_model(model, hyperparams,
                                  data_generator_train, data_generator_valid,
-                                 epochs=epochs, start_epoch=start_epoch,
+                                 epochs=args.epochs, start_epoch=start_epoch,
                                  class_weight={0: 1, 1: hyperparams['positive_class_weight']},
                                  callback_list=frozenset([
                                      'weights_history',
@@ -325,14 +325,9 @@ if __name__ == '__main__':
                                hyperparams=hyperparams,
                                hyperparams_features=hyperparams_features,
                                experiment=experiment,
-                               version=args.version,
-                               epochs=args.epochs,
-                               word_embedding_type=args.embeddings,
-                               model_type=args.model)
+                               args=args)
     else:
-        network_type = "lstm"
-        hierarchy_type = "hierarchical"
-        model_path = f'../resources/models/{hierarchy_type}_{args.embeddings}_{args.model}_{args.version}'
+        model_path = f'../resources/models/{args.model}_{args.embeddings}_{args.version}_{args.note}'
         # load saved model
         hyperparams, hyperparams_features = load_params(model_path=model_path)
         model = load_saved_model_weights(model_path=model_path, hyperparams=hyperparams, hyperparams_features=hyperparams_features, h5=True)

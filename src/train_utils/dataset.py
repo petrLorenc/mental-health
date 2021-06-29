@@ -2,6 +2,8 @@ import json
 
 from loader.EriskDataGenerator import EriskDataGenerator
 from loader.EriskDataGenerator_raw import EriskDataGeneratorRaw
+from loader.EriskDataGenerator_bow import EriskDataGeneratorBow
+
 from loader.DAICDataGenerator_features import DAICDataGenerator
 from loader.DAICDataGenerator_raw import DAICDataGeneratorRaw
 from loader.DAICDataGenerator_bow import DAICDataGeneratorBoW
@@ -67,6 +69,27 @@ def initialize_datasets_erisk_raw(user_level_data, subjects_split, hyperparams, 
     return data_generator_train, data_generator_valid, data_generator_test
 
 
+def initialize_datasets_erisk_bow(user_level_data, subjects_split, hyperparams, hyperparams_features):
+    data_generator_train = EriskDataGeneratorBow(user_level_data, subjects_split, set_type='train',
+                                                 hyperparams_features=hyperparams_features,
+                                                 seq_len=hyperparams['maxlen'], batch_size=1,
+                                                 max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                 shuffle=False)
+
+    data_generator_valid = EriskDataGeneratorBow(user_level_data, subjects_split, set_type="valid",
+                                                 hyperparams_features=hyperparams_features,
+                                                 seq_len=hyperparams['maxlen'], batch_size=1,
+                                                 max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                 shuffle=False)
+
+    data_generator_test = EriskDataGeneratorBow(user_level_data, subjects_split, set_type="test",
+                                                hyperparams_features=hyperparams_features,
+                                                seq_len=hyperparams['maxlen'], batch_size=1,
+                                                max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                shuffle=False)
+    return data_generator_train, data_generator_valid, data_generator_test
+
+
 def initialize_datasets_daic(
         hyperparams,
         hyperparams_features,
@@ -81,7 +104,6 @@ def initialize_datasets_daic(
     data_generator_train = DAICDataGenerator(hyperparams_features=hyperparams_features,
                                              seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
                                              max_posts_per_user=hyperparams['max_posts_per_user'],
-                                             post_groups_per_user=None,
                                              shuffle=True,
                                              compute_liwc=True,
                                              keep_first_batches=False)
@@ -96,7 +118,6 @@ def initialize_datasets_daic(
     data_generator_valid = DAICDataGenerator(hyperparams_features=hyperparams_features,
                                              seq_len=hyperparams['maxlen'], batch_size=1,
                                              max_posts_per_user=hyperparams['max_posts_per_user'],
-                                             post_groups_per_user=None,
                                              shuffle=False,
                                              compute_liwc=True,
                                              keep_first_batches=False)
@@ -110,7 +131,6 @@ def initialize_datasets_daic(
     data_generator_test = DAICDataGenerator(hyperparams_features=hyperparams_features,
                                             seq_len=hyperparams['maxlen'], batch_size=1,
                                             max_posts_per_user=hyperparams['max_posts_per_user'],
-                                            post_groups_per_user=None,
                                             shuffle=False,
                                             compute_liwc=True,
                                             keep_first_batches=False)
@@ -169,37 +189,22 @@ def initialize_datasets_daic_raw(
     return data_generator_train, data_generator_valid, data_generator_test
 
 
-def initialize_datasets_daic_bow(
-        hyperparams,
-        hyperparams_features,
-        path_train="../data/daic-woz/train_data.json",
-        path_valid="../data/daic-woz/dev_data.json",
-        path_test="../data/daic-woz/test_data.json",
+def initialize_datasets_daic_bow(user_level_data, subjects_split, hyperparams, hyperparams_features):
+    data_generator_train = DAICDataGeneratorBoW(user_level_data, subjects_split, set_type='train',
+                                                hyperparams_features=hyperparams_features,
+                                                seq_len=hyperparams['maxlen'], batch_size=1,
+                                                max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                shuffle=False)
 
-):
-    with open(path_train, "r") as f:
-        data_json = json.load(f)
+    data_generator_valid = DAICDataGeneratorBoW(user_level_data, subjects_split, set_type="valid",
+                                                hyperparams_features=hyperparams_features,
+                                                seq_len=hyperparams['maxlen'], batch_size=1,
+                                                max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                shuffle=False)
 
-    data_generator_train = DAICDataGeneratorBoW(shuffle=True)
-
-    for session in data_json:
-        data_generator_train.load_daic_data(session, nickname=session["label"]["Participant_ID"])
-    vectorizer = data_generator_train.generate_indexes()
-
-    with open(path_valid, "r") as f:
-        data_json = json.load(f)
-
-    data_generator_valid = DAICDataGeneratorBoW(shuffle=False, vectorizer=vectorizer)
-    for session in data_json:
-        data_generator_valid.load_daic_data(session, nickname=session["label"]["Participant_ID"])
-    data_generator_valid.generate_indexes()
-
-    with open(path_test, "r") as f:
-        data_json = json.load(f)
-
-    data_generator_test = DAICDataGeneratorBoW(shuffle=False, vectorizer=vectorizer)
-    for session in data_json:
-        data_generator_test.load_daic_data(session, nickname=session["label"]["Participant_ID"])
-    data_generator_test.generate_indexes()
-
+    data_generator_test = DAICDataGeneratorBoW(user_level_data, subjects_split, set_type="test",
+                                               hyperparams_features=hyperparams_features,
+                                               seq_len=hyperparams['maxlen'], batch_size=1,
+                                               max_posts_per_user=hyperparams['max_posts_per_user'],
+                                               shuffle=False)
     return data_generator_train, data_generator_valid, data_generator_test

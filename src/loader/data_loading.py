@@ -1,5 +1,7 @@
 from utils.logger import logger
 
+import json
+
 from resource_loading import load_NRC, load_LIWC, load_vocabulary
 
 
@@ -46,6 +48,52 @@ def load_erisk_data(writings_df, liwc_categories, valid_prop=0.3,
             user_level_texts[row.subject]['texts'].append(words)
             user_level_texts[row.subject]['liwc'].append(liwc_categs)
             user_level_texts[row.subject]['raw'].append(raw_text)
+
+    return user_level_texts, subjects_split
+
+
+def load_daic_data(path_train="../data/daic-woz/train_data.json",
+                   path_valid="../data/daic-woz/dev_data.json",
+                   path_test="../data/daic-woz/test_data.json",
+                   include_only=["Ellie", "Participant"]):
+    with open(path_train, "r") as f:
+        data_train = json.load(f)
+    with open(path_valid, "r") as f:
+        data_valid = json.load(f)
+    with open(path_test, "r") as f:
+        data_test = json.load(f)
+
+    training_subjects = [x["label"]["Participant_ID"] for x in data_train]
+    valid_subjects = [x["label"]["Participant_ID"] for x in data_valid]
+    test_subjects = [x["label"]["Participant_ID"] for x in data_test]
+
+    # ensuring reproducibility (with same version of sorting)
+    training_subjects = sorted(training_subjects)
+    valid_subjects = sorted(valid_subjects)
+    test_subjects = sorted(test_subjects)
+
+    subjects_split = {'train': training_subjects,
+                      'valid': valid_subjects,
+                      'test': test_subjects}
+
+    user_level_texts = {}
+    for row in data_train + data_valid + data_test:
+        for utterance in row["transcripts"]:
+            if not utterance["speaker"] in include_only:
+                continue
+            raw_text = utterance["value"]
+            label = int(row["label"]["PHQ8_Binary"])
+            subject = row["label"]["Participant_ID"]
+            if subject not in user_level_texts.keys():
+                user_level_texts[subject] = {}
+                user_level_texts[subject]['texts'] = [raw_text.split()]
+                user_level_texts[subject]['label'] = label
+                user_level_texts[subject]['liwc'] = [[]]
+                user_level_texts[subject]['raw'] = [raw_text]
+            else:
+                user_level_texts[subject]['texts'].append(raw_text.split())
+                user_level_texts[subject]['liwc'].append([])
+                user_level_texts[subject]['raw'].append(raw_text)
 
     return user_level_texts, subjects_split
 

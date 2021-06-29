@@ -40,7 +40,7 @@ class AbstractDataGenerator(Sequence):
 
         # Initialization of utils
         self.indexes = []
-        self.indexes_per_user = {u: [] for u in self.subjects_split[self.set]}
+        self.indexes_per_user = {u: [] for u in self.subjects_split[self.set] if u in self.data}
         self.indexes_with_user = []
 
         self.on_data_loaded()
@@ -52,7 +52,8 @@ class AbstractDataGenerator(Sequence):
             np.random.shuffle(self.indexes)
 
     def on_data_loaded(self):
-        for u, data in self.data.items():
+        for u in self.subjects_split[self.set]:
+            data = self.data[u]
             user_posts = data['texts']
 
             # Rolling window of datapoints: chunks with overlapping posts
@@ -73,7 +74,7 @@ class AbstractDataGenerator(Sequence):
         self.on_epoch_end()
 
     def yield_data_grouped_by_users(self):
-        frozen_users = list(self.user_level_texts.keys())
+        frozen_users = list(self.indexes_per_user.keys())
         for user in frozen_users:
             yield self.get_data_for_specific_user(user)
 
@@ -86,9 +87,13 @@ class AbstractDataGenerator(Sequence):
         labels = []
         for user, range_indexes in indexes:
             # PHQ8 binary
-            labels.append(self.data[user]['label'] if "label" in self.data["user"] else None)
+            labels.append(self.data[user]['label'] if "label" in self.data[user] else None)
             # Get features
             features.append(self.yield_features_for_user_in_data_range(user, range_indexes))
+
+        labels = np.array(labels, dtype=np.float32)
+        features = np.array(features, dtype=np.float32)
+        # user_texts = np.array(user_texts, dtype=np.str).reshape(-1, self.max_posts_per_user)
         return features, labels
 
 

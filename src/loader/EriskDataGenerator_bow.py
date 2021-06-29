@@ -1,12 +1,12 @@
 from utils.logger import logger
 
-from loader.AbstractDataGenerator import AbstractDataGenerator
+import numpy as np
 
 from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.feature_extraction.text import TfidfVectorizer
+from loader.AbstractDataGenerator import AbstractDataGenerator
 
 
-class DAICDataGeneratorBoW(AbstractDataGenerator):
+class EriskDataGeneratorBow(AbstractDataGenerator):
     """Generates data for Keras"""
 
     def __init__(self, user_level_data, subjects_split, set_type, hyperparams_features, batch_size, seq_len,

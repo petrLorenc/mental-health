@@ -1,9 +1,8 @@
 from utils.logger import logger
-from train_utils.experiment import get_network_type, initialize_experiment
+from train_utils.experiment import initialize_experiment
 
 import os
 import pickle
-import logging
 import argparse
 
 print(os.getcwd())
@@ -18,11 +17,12 @@ from model.lstm import build_lstm_model
 from model.bow_logistic_regression import build_bow_log_regression_model
 
 from load_save_model import save_model_and_params, load_params, load_saved_model_weights
-from loader.data_loading import load_erisk_data
+from loader.data_loading import load_erisk_data, load_daic_data
 from resource_loading import load_NRC, load_LIWC, load_stopwords
 
 from train_utils.dataset import initialize_datasets_erisk
 from train_utils.dataset import initialize_datasets_erisk_raw
+from train_utils.dataset import initialize_datasets_erisk_bow
 
 from train_utils.dataset import initialize_datasets_daic
 from train_utils.dataset import initialize_datasets_daic_raw
@@ -141,57 +141,73 @@ def train(data_generator_train, data_generator_valid,
 
 def test(model, data_generator_test, experiment, logger, hyperparams):
     logger.info("Testing model...\n")
-    tp, tn, fp, fn = 0, 0, 0, 0
 
-    ratio_positive = []
-    ratio_negative = []
+    data_identifications = []
+    ratios = []
+    ground_truth = []
 
     step = 0
-    for label, data in data_generator_test.yield_data_for_user():
+    for data, label, data_identification in data_generator_test.yield_data_grouped_by_users():
         if len(data) == 0:
             continue
         if type(label) == list:
             label = label[0]
-        prediction = model.predict_on_batch(data)
-        prediction_for_user = [x[0] for x in map(lambda x: x > hyperparams["threshold"], prediction)]
-        if len(prediction_for_user) > 1:
-            ratio_of_depressed_sequences = sum(prediction_for_user) / len(prediction_for_user)
-            prediction_for_user = ratio_of_depressed_sequences > 0.15
-        else:
-            ratio_of_depressed_sequences = prediction[0]
-            prediction_for_user = prediction_for_user[0]
 
-        if label == 1:
-            experiment.log_metric("test_ratio_for_1", ratio_of_depressed_sequences, step=step)
+        prediction = model.predict_on_batch(data)
+        experiment.log_histogram_3d(prediction, "Confidences", step=step)
+        # threshold for one sequence (typically set to 0.5)
+        prediction_for_user = [x for x in map(lambda x: x > hyperparams["threshold"], prediction)]
+        if len(prediction_for_user) > 1:
+            # working with sequences
+            ratio_of_depressed_sequences = sum(prediction_for_user) / len(prediction_for_user)
         else:
-            experiment.log_metric("test_ratio_for_0", ratio_of_depressed_sequences, step=step)
+            # working with classification of whole datapoint for user (typically BoW)
+            ratio_of_depressed_sequences = prediction[0]
+
+        experiment.log_metric("test_ratio", ratio_of_depressed_sequences, step=step)
+        ratios.append(ratio_of_depressed_sequences)
+        ground_truth.append(label)
+        data_identifications.append(data_identification)
         step += 1
 
-        if prediction_for_user == 1 and label == 1:
-            tp += 1
-            ratio_positive.append(ratio_of_depressed_sequences)
-        elif prediction_for_user == 0 and label == 0:
-            tn += 1
-            ratio_negative.append(ratio_of_depressed_sequences)
-        elif prediction_for_user == 1 and label == 0:
-            fp += 1
-            ratio_negative.append(ratio_of_depressed_sequences)
-        elif prediction_for_user == 0 and label == 1:
-            fn += 1
-            ratio_positive.append(ratio_of_depressed_sequences)
+    # find best threshold for ratio
+    best_threshold = 0.0
+    best_UAR = 0.5  # Unweighted Average Recall (UAR)
+    for tmp_threshold in np.linspace(0, 1, 50):
+        tmp_prediction = [int(x[0]) for x in map(lambda x: x > tmp_threshold, ratios)]
+        tmp_tp = sum([t == 1 and t == p for t, p in zip(ground_truth, tmp_prediction)])
+        tmp_tn = sum([t == 0 and t == p for t, p in zip(ground_truth, tmp_prediction)])
+        tmp_fp = sum([t == 0 and p == 1 for t, p in zip(ground_truth, tmp_prediction)])
+        tmp_fn = sum([t == 1 and p == 0 for t, p in zip(ground_truth, tmp_prediction)])
 
-    # experiment.log_histogram_3d(ratio_positive, name="positive_ratios")
-    # experiment.log_histogram_3d(ratio_negative, name="negative_ratios")
+        tmp_recall_1 = float(tmp_tp) / (float(tmp_tp + tmp_fn) + tf.keras.backend.epsilon())
+        tmp_recall_0 = float(tmp_tn) / (float(tmp_tn + tmp_fp) + tf.keras.backend.epsilon())
+        tmp_UAR = (tmp_recall_1 + tmp_recall_0) / 2
+        if tmp_UAR > best_UAR:
+            best_UAR = tmp_UAR
+            best_threshold = tmp_threshold
+
+    predictions = [int(x[0]) for x in map(lambda x: x > best_threshold, ratios)]
+    tp = sum([t == 1 and t == p for t, p in zip(ground_truth, predictions)])
+    tn = sum([t == 0 and t == p for t, p in zip(ground_truth, predictions)])
+    fp = sum([t == 0 and p == 1 for t, p in zip(ground_truth, predictions)])
+    fn = sum([t == 1 and p == 0 for t, p in zip(ground_truth, predictions)])
+
     recall_1 = float(tp) / (float(tp + fn) + tf.keras.backend.epsilon())
     recall_0 = float(tn) / (float(tn + fp) + tf.keras.backend.epsilon())
     precision_0 = float(tp) / (float(tp + fp) + tf.keras.backend.epsilon())
     precision_1 = float(tn) / (float(tn + fn) + tf.keras.backend.epsilon())
-    experiment.log_metric("test_recall_based_on_ratio_1", recall_1, step=step)
-    experiment.log_metric("test_recall_based_on_ratio_0", recall_0, step=step)
-    experiment.log_metric("test_precision_based_on_ratio_1", precision_0, step=step)
-    experiment.log_metric("test_precision_based_on_ratio_0", precision_1, step=step)
+    experiment.log_metric("test_recall_1", recall_1)
+    experiment.log_metric("test_recall_0", recall_0)
+    experiment.log_metric("test_precision_1", precision_0)
+    experiment.log_metric("test_precision_0", precision_1)
 
     logger.debug(f"Recall_0: {recall_0}, Recall_1:{recall_1}, Precision_0:{precision_0}, Precision_1:{precision_1}")
+
+    experiment.log_confusion_matrix(y_true=ground_truth,
+                                    y_predicted=predictions,
+                                    labels=["0", "1"],
+                                    index_to_example_function=lambda x: data_identifications[x])
 
 
 if __name__ == '__main__':
@@ -268,18 +284,9 @@ if __name__ == '__main__':
         "liwc_words_cached": "../resources/generated/liwc_categories_for_vocabulary_erisk_clpsych_stop_20K.pkl"
     }
 
-    pretrained_embeddings_path = hyperparams_features['embeddings_path']
-    dataset_type = "depression"
-    transfer_type = None
     dataset = args.dataset
 
-    nrc_lexicon_path = hyperparams_features["nrc_lexicon_path"]
-    nrc_lexicon = load_NRC(nrc_lexicon_path)
-    emotions = list(nrc_lexicon.keys())
-
-    experiment = initialize_experiment(hyperparams=hyperparams, nrc_lexicon_path=nrc_lexicon_path, emotions=emotions,
-                                       pretrained_embeddings_path=pretrained_embeddings_path,
-                                       transfer_type=transfer_type, hyperparams_features=hyperparams_features)
+    experiment = initialize_experiment(hyperparams=hyperparams, args=args, hyperparams_features=hyperparams_features)
 
     logger.info("Initializing datasets...\n")
     if dataset == "erisk":
@@ -301,9 +308,18 @@ if __name__ == '__main__':
                                                                                                             subjects_split,
                                                                                                             hyperparams,
                                                                                                             hyperparams_features)
+        elif args.embeddings == "bow":
+            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_erisk_bow(user_level_data,
+                                                                                                            subjects_split,
+                                                                                                            hyperparams,
+                                                                                                            hyperparams_features)
+            hyperparams["bow_input_feature_size"] = data_generator_train.get_input_dimension()
         else:
             raise NotImplementedError(f"Embeddings {args.embeddings} not implemented yet")
     elif dataset == "daic":
+        user_level_data, subjects_split = load_daic_data(path_train="../data/daic-woz/train_data.json",
+                                                         path_valid="../data/daic-woz/dev_data.json",
+                                                         path_test="../data/daic-woz/test_data.json")
         if args.embeddings == "random" or args.embeddings == "glove":
             data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic(hyperparams,
                                                                                                        hyperparams_features)
@@ -311,7 +327,7 @@ if __name__ == '__main__':
             data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic_raw(hyperparams,
                                                                                                            hyperparams_features)
         elif args.embeddings == "bow":
-            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic_bow(hyperparams,
+            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic_bow(user_level_data, subjects_split,hyperparams,
                                                                                                            hyperparams_features)
             hyperparams["bow_input_feature_size"] = data_generator_train.get_input_dimension()
         else:

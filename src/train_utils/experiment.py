@@ -2,13 +2,7 @@ from utils.logger import logger
 from comet_ml import Experiment, Optimizer
 
 
-def get_network_type():
-    network_type = 'lstm'
-    hierarch_type = 'hierarchical'
-    return network_type, hierarch_type
-
-
-def initialize_experiment(hyperparams, nrc_lexicon_path, emotions, pretrained_embeddings_path, transfer_type, hyperparams_features):
+def initialize_experiment(hyperparams, args, hyperparams_features):
     logger.info("Preparing Experiment (Comet_ml)...\n")
     # Create an experiment with your api key
     experiment = Experiment(
@@ -18,13 +12,13 @@ def initialize_experiment(hyperparams, nrc_lexicon_path, emotions, pretrained_em
         disabled=False
     )
 
-    experiment.log_parameters(hyperparams_features)
 
-    experiment.log_parameter('emotion_lexicon', nrc_lexicon_path)
-    experiment.log_parameter('emotions', emotions)
-    experiment.log_parameter('embeddings_path', pretrained_embeddings_path)
-    experiment.log_parameter('transfer_type', transfer_type)
-    experiment.add_tag("depression")
+    experiment.add_tag(args.embeddings)
+    experiment.add_tag(args.dataset)
+    experiment.add_tag(args.model)
+    experiment.log_dataset_info(args.only_test)
+    experiment.log_dataset_info(args.smaller_data)
     experiment.log_parameters(hyperparams)
+    experiment.log_parameters(hyperparams_features)
 
     return experiment

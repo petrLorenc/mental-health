@@ -20,7 +20,6 @@ class DAICDataGenerator(Sequence):
                  hyperparams_features,
                  batch_size, seq_len,
                  compute_liwc=False,
-                 post_groups_per_user=None, post_offset=0,
                  max_posts_per_user=10,
                  pronouns=["i", "me", "my", "mine", "myself"],
                  shuffle=True,
@@ -39,11 +38,10 @@ class DAICDataGenerator(Sequence):
         self.keep_last_batch = keep_last_batch
         self.shuffle = shuffle
         self.max_posts_per_user = max_posts_per_user
-        self.post_groups_per_user = post_groups_per_user
-        self.post_offset = post_offset
         self.padding = "pre"
         self.pad_value = 0
         self.keep_first_batches = keep_first_batches  # in the rolling window case, whether it will keep
+
         self.vocabulary = load_vocabulary(hyperparams_features['vocabulary_path'])
         self.voc_size = hyperparams_features['max_features']
         if ablate_emotions:
@@ -92,20 +90,19 @@ class DAICDataGenerator(Sequence):
 
             # Rolling window of datapoints: chunks with overlapping posts
             nr_post_groups = len(user_posts)
-            if self.post_groups_per_user:
-                nr_post_groups = min(self.post_groups_per_user, nr_post_groups)
+
             if self.keep_first_batches:
                 # Generate datapoints for first posts, before a complete chunk
                 for i in range(1, min(self.max_posts_per_user, nr_post_groups - 1)):
-                    self.indexes_per_user[u].append(range(self.post_offset, i + self.post_offset))
-                    self.indexes_with_user.append((u, range(self.post_offset, i + self.post_offset)))
+                    self.indexes_per_user[u].append(range(0, i))
+                    self.indexes_with_user.append((u, range(0, i)))
 
             for i in range(nr_post_groups):
                 # Stop at the last complete chunk
-                if i + self.max_posts_per_user + self.post_offset > len(user_posts):
+                if i + self.max_posts_per_user > len(user_posts):
                     break
-                self.indexes_per_user[u].append(range(i + self.post_offset, min(i + self.max_posts_per_user + self.post_offset, len(user_posts))))
-                self.indexes_with_user.append((u, range(i + self.post_offset, min(i + self.max_posts_per_user + self.post_offset, len(user_posts)))))
+                self.indexes_per_user[u].append(range(i, min(i + self.max_posts_per_user, len(user_posts))))
+                self.indexes_with_user.append((u, range(i, min(i + self.max_posts_per_user, len(user_posts)))))
         self.on_epoch_end()
 
     def __encode_text__(self, tokens, raw_text):

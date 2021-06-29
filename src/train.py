@@ -21,7 +21,6 @@ from load_save_model import save_model_and_params, load_params, load_saved_model
 from loader.data_loading import load_erisk_data
 from resource_loading import load_NRC, load_LIWC, load_stopwords
 
-
 from train_utils.dataset import initialize_datasets_erisk
 from train_utils.dataset import initialize_datasets_erisk_raw
 
@@ -107,15 +106,10 @@ def initialize_model(hyperparams, hyperparams_features, word_embedding_type="ran
 
 def train(data_generator_train, data_generator_valid,
           hyperparams, hyperparams_features,
-          experiment, dataset_type,
+          experiment,
           version=0, epochs=1, start_epoch=0,
           model=None, word_embedding_type="random", model_type="hierarchical"):
-    network_type, hierarchy_type = get_network_type(hyperparams)
-    for feature in ['LIWC', 'emotions', 'numerical_dense_layer', 'sparse_feat_dense_layer', 'user_encoded']:
-        if feature in hyperparams['ignore_layer']:
-            network_type += "no%s" % feature
-
-    model_path = f'../resources/models/{network_type}_{dataset_type}_{hierarchy_type}_{word_embedding_type}_{model_type}_{version}'
+    model_path = f'../resources/models/{hierarchy_type}_{word_embedding_type}_{model_type}_{version}'
 
     if not model:
         model = initialize_model(hyperparams, hyperparams_features,
@@ -214,6 +208,7 @@ if __name__ == '__main__':
         else:
             raise argparse.ArgumentTypeError('Boolean value expected.')
 
+
     parser = argparse.ArgumentParser(description='Train model')
     parser.add_argument('--version', metavar="-v", type=int, default=0, help='version of model')
     parser.add_argument('--dataset', metavar="-d", type=str, default="daic", help='(supported "daic" or "erisk")')
@@ -222,28 +217,46 @@ if __name__ == '__main__':
     parser.add_argument('--model', metavar="-t", type=str, default="hierarchical", help="(supported 'hierarchical', 'lstm' or 'bow')")
     parser.add_argument('--only_test', type=str2bool, help="Only test - loading trained model from disk")
     parser.add_argument('--smaller_data', type=str2bool, help="Only test data (small portion)")
+    parser.add_argument('--note', type=str, help="Note")
     args = parser.parse_args()
     logger.info(args)
-    # todo control about possible combination of parameters??
 
-    hyperparams = {"trainable_embeddings": True, "dense_bow_units": 20, "dense_sentence_units": 0,
-                   "dense_numerical_units": 20, "filters": 100, "kernel_size": 5,
-                   "dense_user_units": 0, "filters_user": 10, "kernel_size_user": 3, "transfer_units": 20,
-                   "dropout": 0.1, "l2_dense": 0.00011, "l2_embeddings": 1e-07, "norm_momentum": 0.1,
-                   "ignore_layer": [], "decay": 0.001, "lr": 5e-05, "reduce_lr_factor": 0.5,
-                   "reduce_lr_patience": 55, "scheduled_reduce_lr_freq": 95, "scheduled_reduce_lr_factor": 0.5,
-                   "freeze_patience": 2000, "threshold": 0.5, "early_stopping_patience": 5,
+    hyperparams = {
+        # network param - less important
+        "trainable_embeddings": True,
+        "dense_bow_units": 20,
+        "dense_numerical_units": 20,
+        "dense_user_units": 0,
+        "dropout": 0.1,
+        "l2_dense": 0.00011,
+        "l2_embeddings": 1e-07,
+        "norm_momentum": 0.1,
+        "ignore_layer": [],
 
-                   "positive_class_weight": 2,
-                   "maxlen": 30,
-                   "lstm_units": 64,
-                   "lstm_units_user": 64,
-                   "max_posts_per_user": 10,
-                   "batch_size": 31,
+        # network param - important
+        "positive_class_weight": 2,
+        "maxlen": 50,
+        "lstm_units": 100,
+        "lstm_units_user": 100,
+        "max_posts_per_user": 15,
+        "batch_size": 32,
 
-                   "posts_per_user": None,
-                   "post_groups_per_user": None, "padding": "pre",
-                   "hierarchical": True, "optimizer": "adam"}
+        # metrics
+        "reduce_lr_factor": 0.5,
+        "reduce_lr_patience": 55,
+        "scheduled_reduce_lr_freq": 95,
+        "scheduled_reduce_lr_factor": 0.5,
+        "threshold": 0.5,
+
+        # optimizer
+        "optimizer": "adam",
+        "decay": 0.001,
+        "lr": 5e-05,
+
+        # data param
+        "padding": "pre"
+    }
+
     hyperparams_features = {
         "max_features": 20000,
         "embedding_dim": 300,
@@ -265,12 +278,12 @@ if __name__ == '__main__':
     emotions = list(nrc_lexicon.keys())
 
     experiment = initialize_experiment(hyperparams=hyperparams, nrc_lexicon_path=nrc_lexicon_path, emotions=emotions,
-                                       pretrained_embeddings_path=pretrained_embeddings_path, dataset_type=dataset_type,
+                                       pretrained_embeddings_path=pretrained_embeddings_path,
                                        transfer_type=transfer_type, hyperparams_features=hyperparams_features)
 
     logger.info("Initializing datasets...\n")
     if dataset == "erisk":
-        writings_df = pickle.load(open('../data/eRisk/writings_df_%s_liwc' % dataset_type, 'rb'))
+        writings_df = pickle.load(open('../data/eRisk/writings_df_depression_liwc', 'rb'))
         if args.smaller_data:
             writings_df = writings_df.sample(frac=0.1)
 
@@ -312,7 +325,6 @@ if __name__ == '__main__':
                                hyperparams=hyperparams,
                                hyperparams_features=hyperparams_features,
                                experiment=experiment,
-                               dataset_type=dataset_type,
                                version=args.version,
                                epochs=args.epochs,
                                word_embedding_type=args.embeddings,
@@ -320,7 +332,7 @@ if __name__ == '__main__':
     else:
         network_type = "lstm"
         hierarchy_type = "hierarchical"
-        model_path = f'../resources/models/{network_type}_{dataset_type}_{hierarchy_type}_{args.embeddings}_{args.model}_{args.version}'
+        model_path = f'../resources/models/{hierarchy_type}_{args.embeddings}_{args.model}_{args.version}'
         # load saved model
         hyperparams, hyperparams_features = load_params(model_path=model_path)
         model = load_saved_model_weights(model_path=model_path, hyperparams=hyperparams, hyperparams_features=hyperparams_features, h5=True)

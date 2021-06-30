@@ -63,7 +63,7 @@ def load_embeddings(embeddings_path, embedding_dim, vocabulary):
     return embedding_matrix
 
 
-def load_stopwords(path):
+def load_list_from_file(path):
     stopwords_list = []
     with open(path) as f:
         for line in f:

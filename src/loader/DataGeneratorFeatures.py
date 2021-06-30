@@ -9,7 +9,7 @@ import numpy as np
 from nltk.tokenize import RegexpTokenizer
 from tensorflow.keras.utils import Sequence
 from tensorflow.keras.preprocessing import sequence
-from resource_loading import load_NRC, load_LIWC, load_vocabulary, load_stopwords
+from resource_loading import load_NRC, load_LIWC, load_vocabulary, load_list_from_file
 from utils.feature_encoders import encode_emotions, encode_pronouns, encode_stopwords, encode_liwc_categories
 from loader.AbstractDataGenerator import AbstractDataGenerator
 
@@ -38,7 +38,7 @@ class DataGeneratorHierarchical(AbstractDataGenerator):
         else:
             self.liwc_categories = set(self.liwc_words_for_categories.keys())
 
-        self.stopwords_list = load_stopwords(hyperparams_features['stopwords_path'])
+        self.stopwords_list = load_list_from_file(hyperparams_features['stopwords_path'])
 
         super().__init__(user_level_data, subjects_split, set_type, hyperparams_features, batch_size, seq_len, max_posts_per_user, shuffle,
                          keep_last_batch, keep_first_batches)

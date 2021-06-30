@@ -14,7 +14,7 @@ module_url = "../resources/embeddings/use-4"
 def build_lstm_model(hyperparams, hyperparams_features):
 
     # embedding_dim = hyperparams_features['embedding_dim']
-    emotions_dim = 512
+    embeddings_dim = 512
 
     n_sentences = hyperparams['max_posts_per_user']
     # n_sentences = 4
@@ -24,7 +24,7 @@ def build_lstm_model(hyperparams, hyperparams_features):
     input = tf.keras.layers.Input(shape=(n_sentences,), dtype=tf.string)
     x = [embedding_layer(input[:, s]) for s in range(n_sentences)]
     x = Concatenate(axis=1)(x)
-    x = tf.keras.layers.Reshape((n_sentences, emotions_dim))(x)
+    x = tf.keras.layers.Reshape((n_sentences, embeddings_dim))(x)
     x = LSTM(hyperparams['lstm_units_user'], return_sequences=False)(x)
     output = tf.keras.layers.Dense(1, activation="sigmoid")(x)
 

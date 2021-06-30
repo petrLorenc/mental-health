@@ -18,7 +18,7 @@ from model.bow_logistic_regression import build_bow_log_regression_model
 
 from load_save_model import save_model_and_params, load_params, load_saved_model_weights
 from loader.data_loading import load_erisk_data, load_daic_data
-from resource_loading import load_NRC, load_LIWC, load_stopwords
+from resource_loading import load_NRC, load_LIWC, load_list_from_file
 
 from train_utils.dataset import initialize_datasets_hierarchical
 from train_utils.dataset import initialize_datasets_raw
@@ -81,7 +81,7 @@ def initialize_model(hyperparams, hyperparams_features, word_embedding_type="ran
     if model_type == "hierarchical":
         emotions_dim = 0 if 'emotions' in hyperparams['ignore_layer'] else len(load_NRC(hyperparams_features['nrc_lexicon_path']))
         liwc_categories_dim = 0 if 'liwc' in hyperparams['ignore_layer'] else len(load_LIWC(hyperparams_features['liwc_path']))
-        stopwords_dim = 0 if 'stopwords' in hyperparams['ignore_layer'] else len(load_stopwords(hyperparams_features['stopwords_path']))
+        stopwords_dim = 0 if 'stopwords' in hyperparams['ignore_layer'] else len(load_list_from_file(hyperparams_features['stopwords_path']))
 
         model = build_hierarchical_model(hyperparams, hyperparams_features,
                                          emotions_dim, stopwords_dim, liwc_categories_dim,
@@ -135,22 +135,16 @@ def train(data_generator_train, data_generator_valid,
     return model, history
 
 
-def test(model, data_generator_test, experiment, logger, hyperparams):
+def test(model, data_generator_valid, data_generator_test, experiment, logger, hyperparams):
     logger.info("Testing model...\n")
 
-    data_identifications = []
     ratios = []
     ground_truth = []
 
     step = 0
-    for data, label, data_identification in data_generator_test.yield_data_grouped_by_users():
-        if len(data) == 0:
-            continue
-        if type(label) == list:
-            label = label[0]
-
+    for data, label, _ in data_generator_valid.yield_data_grouped_by_users():
         prediction = model.predict_on_batch(data)
-        experiment.log_histogram_3d(prediction, "Confidences", step=step)
+        experiment.log_histogram_3d(prediction, "Confidences - validation set", step=step)
         # threshold for one sequence (typically set to 0.5)
         prediction_for_user = [x for x in map(lambda x: x > hyperparams["threshold"], prediction)]
         if len(prediction_for_user) > 1:
@@ -159,12 +153,11 @@ def test(model, data_generator_test, experiment, logger, hyperparams):
         else:
             # working with classification of whole datapoint for user (typically BoW)
             ratio_of_depressed_sequences = prediction[0]
-
-        experiment.log_metric("test_ratio", ratio_of_depressed_sequences, step=step)
         ratios.append(ratio_of_depressed_sequences)
         ground_truth.append(label)
-        data_identifications.append(data_identification)
         step += 1
+
+    experiment.log_histogram_3d(values=ratios, name="valid_ratio")
 
     # find best threshold for ratio
     best_threshold = 0.0
@@ -182,6 +175,30 @@ def test(model, data_generator_test, experiment, logger, hyperparams):
         if tmp_UAR > best_UAR:
             best_UAR = tmp_UAR
             best_threshold = tmp_threshold
+
+    data_identifications = []
+    ratios = []
+    ground_truth = []
+
+    step = 0
+    for data, label, data_identification in data_generator_test.yield_data_grouped_by_users():
+        prediction = model.predict_on_batch(data)
+        experiment.log_histogram_3d(prediction, "Confidences - test set", step=step)
+        # threshold for one sequence (typically set to 0.5)
+        prediction_for_user = [x for x in map(lambda x: x > hyperparams["threshold"], prediction)]
+        if len(prediction_for_user) > 1:
+            # working with sequences
+            ratio_of_depressed_sequences = sum(prediction_for_user) / len(prediction_for_user)
+        else:
+            # working with classification of whole datapoint for user (typically BoW)
+            ratio_of_depressed_sequences = prediction[0]
+
+        ratios.append(ratio_of_depressed_sequences)
+        ground_truth.append(label)
+        data_identifications.append(data_identification)
+        step += 1
+
+    experiment.log_histogram_3d(values=ratios, name="test_ratio")
 
     predictions = [int(x[0]) for x in map(lambda x: x > best_threshold, ratios)]
     tp = sum([t == 1 and t == p for t, p in zip(ground_truth, predictions)])
@@ -230,61 +247,26 @@ if __name__ == '__main__':
     parser.add_argument('--only_test', type=str2bool, help="Only test - loading trained model from disk")
     parser.add_argument('--smaller_data', type=str2bool, help="Only test data (small portion)")
     parser.add_argument('--note', type=str, help="Note")
+    parser.add_argument('--bow_vocabulary', type=str, help="BoW vocabulary name")
     args = parser.parse_args()
     logger.info(args)
 
-    hyperparams = {
-        # network param - less important
-        "trainable_embeddings": True,
-        "dense_bow_units": 20,
-        "dense_numerical_units": 20,
-        "dense_user_units": 0,
-        "dropout": 0.1,
-        "l2_dense": 0.00011,
-        "l2_embeddings": 1e-07,
-        "norm_momentum": 0.1,
-        "ignore_layer": [],
-
-        # network param - important
-        "positive_class_weight": 2,
-        "maxlen": 50,
-        "lstm_units": 100,
-        "lstm_units_user": 100,
-        "max_posts_per_user": 15,
-        "batch_size": 64,
-
-        # metrics
-        "reduce_lr_factor": 0.5,
-        "reduce_lr_patience": 55,
-        "scheduled_reduce_lr_freq": 95,
-        "scheduled_reduce_lr_factor": 0.5,
-        "threshold": 0.5,
-
-        # optimizer
-        "optimizer": "adam",
-        "decay": 0.001,
-        "lr": 5e-05,
-
-        # data param
-        "padding": "pre"
-    }
-
-    hyperparams_features = {
-        "vocabulary_path": "../resources/generated/vocab_20000_erisk.txt",
-        "nrc_lexicon_path": "../resources/NRC-Emotion-Lexicon-Wordlevel-v0.92.txt",
-        "liwc_path": "../resources/liwc.dic",
-        "stopwords_path": "../resources/stopwords.txt",
-        "embeddings_path": "../resources/embeddings/glove.840B.300d.txt",
-        "liwc_words_cached": "../resources/generated/liwc_categories_for_vocabulary_erisk_clpsych_stop_20K.pkl"
-    }
-    if args.embeddings == "glove":
-        hyperparams_features["embedding_dim"] = 300
-    elif args.embeddings == "random":
-        hyperparams_features["embedding_dim"] = 300
-    elif args.embeddings == "use":
-        hyperparams_features["embedding_dim"] = 512
-    elif args.embeddings == "use":
-        hyperparams_features["embedding_dim"] = "dymamic"
+    model_path = f'../resources/models/{args.model}_{args.embeddings}_{args.version}_{args.note}'
+    if args.only_test:
+        # load saved model
+        hyperparams, hyperparams_features = load_params(model_path=model_path)
+        logger.info(f"Loaded model from {model_path}")
+    else:
+        hyperparams, hyperparams_features = load_params("../resources/default_config")
+        if args.embeddings == "glove":
+            hyperparams_features["embedding_dim"] = 300
+        elif args.embeddings == "random":
+            hyperparams_features["embedding_dim"] = 30
+        elif args.embeddings == "use":
+            hyperparams_features["embedding_dim"] = 512
+        elif args.embeddings == "bow":
+            hyperparams_features["bow_vocabulary"] = os.path.join("../resources/generated", args.bow_vocabulary)
+            hyperparams_features["embedding_dim"] = "dynamic"
 
     dataset = args.dataset
 
@@ -323,7 +305,8 @@ if __name__ == '__main__':
                                                                                                   subjects_split,
                                                                                                   hyperparams,
                                                                                                   hyperparams_features)
-        hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
+        if hyperparams_features["embedding_dim"] == "dynamic":
+            hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
     else:
         raise NotImplementedError(f"Embeddings {args.embeddings} not implemented yet")
 
@@ -335,11 +318,12 @@ if __name__ == '__main__':
                                experiment=experiment,
                                args=args)
     else:
-        model_path = f'../resources/models/{args.model}_{args.embeddings}_{args.version}_{args.note}'
-        # load saved model
-        hyperparams, hyperparams_features = load_params(model_path=model_path)
-        logger.info(f"Loaded model from {model_path}")
         model = load_saved_model_weights(model_path=model_path, hyperparams=hyperparams, hyperparams_features=hyperparams_features, h5=True,
                                          args=args)
 
-    test(model=model, data_generator_test=data_generator_test, experiment=experiment, logger=logger, hyperparams=hyperparams)
+    test(model=model,
+         data_generator_valid=data_generator_valid,
+         data_generator_test=data_generator_test,
+         experiment=experiment,
+         logger=logger,
+         hyperparams=hyperparams)

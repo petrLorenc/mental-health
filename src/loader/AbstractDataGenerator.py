@@ -6,7 +6,7 @@ import pickle
 import numpy as np
 from nltk.tokenize import RegexpTokenizer
 from tensorflow.keras.utils import Sequence
-from resource_loading import load_NRC, load_vocabulary, load_stopwords
+from resource_loading import load_NRC, load_vocabulary, load_list_from_file
 
 
 class AbstractDataGenerator(Sequence):

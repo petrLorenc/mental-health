@@ -58,12 +58,12 @@ def initialize_datasets_bow(user_level_data, subjects_split, hyperparams, hyperp
                                             hyperparams_features=hyperparams_features,
                                             seq_len=hyperparams['maxlen'], batch_size=1,
                                             max_posts_per_user=hyperparams['max_posts_per_user'],
-                                            shuffle=False)
+                                            shuffle=False, vectorizer=data_generator_train.vectorizer)
 
     data_generator_test = DataGeneratorBow(user_level_data, subjects_split, set_type="test",
                                            hyperparams_features=hyperparams_features,
                                            seq_len=hyperparams['maxlen'], batch_size=1,
                                            max_posts_per_user=hyperparams['max_posts_per_user'],
-                                           shuffle=False)
+                                           shuffle=False, vectorizer=data_generator_train.vectorizer)
     return data_generator_train, data_generator_valid, data_generator_test
 

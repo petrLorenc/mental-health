@@ -12,6 +12,9 @@ from metrics import Metrics
 def build_bow_log_regression_model(hyperparams, hyperparams_features):
 
     _input = tf.keras.layers.Input(shape=(hyperparams_features["embedding_dim"],))
+    # x = tf.keras.layers.Dense(64, activation="relu")(_input)
+    # x = tf.keras.layers.Dense(32, activation="relu")(x)
+    # _output = tf.keras.layers.Dense(1, activation="sigmoid")(x)
     _output = tf.keras.layers.Dense(1, activation="sigmoid")(_input)
 
     model = tf.keras.Model(inputs=_input, outputs=_output)

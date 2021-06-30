@@ -4,7 +4,7 @@ import numpy as np
 
 from sklearn.feature_extraction.text import CountVectorizer
 from loader.AbstractDataGenerator import AbstractDataGenerator
-
+from resource_loading import load_list_from_file
 
 class DataGeneratorBow(AbstractDataGenerator):
     """Generates data for Keras"""
@@ -12,16 +12,20 @@ class DataGeneratorBow(AbstractDataGenerator):
     def __init__(self, user_level_data, subjects_split, set_type, hyperparams_features, batch_size, seq_len,
                  max_posts_per_user=10, shuffle=True, keep_last_batch=True, keep_first_batches=False, vectorizer=None):
 
-        self.vectorizer = vectorizer
+        if vectorizer is None:
+            vectorizer_vocabulary = load_list_from_file(hyperparams_features["bow_vocabulary"])
+            self.vectorizer = CountVectorizer(vocabulary=vectorizer_vocabulary)
+        else:
+            self.vectorizer = vectorizer
 
         super().__init__(user_level_data, subjects_split, set_type, hyperparams_features, batch_size, seq_len, max_posts_per_user, shuffle,
                          keep_last_batch, keep_first_batches)
 
     def on_data_loaded(self):
         # super().on_data_loaded()
-        all_texts = [x for data in self.data.values() for x in data["raw"]]
-        self.vectorizer = CountVectorizer() if self.vectorizer is None else self.vectorizer
-        self.vectorizer.fit(all_texts)
+        # all_texts = [x for data in self.data.values() for x in data["raw"]]
+        # self.vectorizer = CountVectorizer() if self.vectorizer is None else self.vectorizer
+        # self.vectorizer.fit(all_texts)
 
         for u in self.subjects_split[self.set]:
             if u in self.data:

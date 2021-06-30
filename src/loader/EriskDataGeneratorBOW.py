@@ -29,7 +29,7 @@ class EriskDataGeneratorBow(AbstractDataGenerator):
 
         self.on_epoch_end()
 
-    def yield_features_for_user_in_data_range(self, user, data_range):
+    def get_features_for_user_in_data_range(self, user, data_range):
         # data_range not used for BoW
         user_texts = " ".join([x for x in self.data[user]["raw"]])
 

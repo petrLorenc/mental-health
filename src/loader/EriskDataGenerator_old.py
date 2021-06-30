@@ -2,7 +2,7 @@ from utils.logger import logger
 
 import sys
 from nltk.tokenize import RegexpTokenizer
-from src.loader.EriskDataGenerator import EriskDataGenerator
+from src.loader.EriskDataGeneratorFeatures import EriskDataGenerator
 import logging
 from src.loader.data_loading import load_erisk_server_data
 

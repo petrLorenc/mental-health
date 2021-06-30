@@ -4,7 +4,7 @@ from load_save_model import load_params, load_saved_model_weights
 from resource_loading import load_stopwords
 import json
 from src.loader.EriskDataGenerator_old import EriskEriskDataGenerator
-from src.loader.DAICDataGenerator_features import DAICDataGenerator
+from src.loader.DAICDataGeneratorFeatures import DAICDataGenerator
 import numpy as np
 
 RUNS_MODEL_PATHS = {

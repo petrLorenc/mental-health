@@ -39,6 +39,7 @@ class AbstractDataGenerator(Sequence):
         self.pad_value = 0
 
         # Initialization of utils
+        self.tokenizer = RegexpTokenizer(r'\w+')
         self.indexes = []
         self.indexes_per_user = {u: [] for u in self.subjects_split[self.set] if u in self.data}
         self.indexes_with_user = []
@@ -53,6 +54,8 @@ class AbstractDataGenerator(Sequence):
 
     def on_data_loaded(self):
         for u in self.subjects_split[self.set]:
+            if u not in self.data:
+                continue
             data = self.data[u]
             user_posts = data['texts']
 
@@ -89,16 +92,19 @@ class AbstractDataGenerator(Sequence):
             # PHQ8 binary
             labels.append(self.data[user]['label'] if "label" in self.data[user] else None)
             # Get features
-            features.append(self.yield_features_for_user_in_data_range(user, range_indexes))
+            features.append(self.get_features_for_user_in_data_range(user, range_indexes))
 
         labels = np.array(labels, dtype=np.float32)
-        features = np.array(features, dtype=np.float32)
+        try:
+            features = np.array(features)
+        except:
+            pass
         # user_texts = np.array(user_texts, dtype=np.str).reshape(-1, self.max_posts_per_user)
         return features, labels
 
 
     @abstractmethod
-    def yield_features_for_user_in_data_range(self, user, data_range):
+    def get_features_for_user_in_data_range(self, user, data_range):
         pass
 
     @abstractmethod

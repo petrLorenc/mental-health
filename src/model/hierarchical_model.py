@@ -29,8 +29,8 @@ def build_hierarchical_model(hyperparams, hyperparams_features,
 
     # Post/sentence representation - word sequence
     tokens_features = Input(shape=(hyperparams['maxlen'],), name='word_seq')
-    embedding_layer = Embedding(hyperparams_features['max_features'] + 2,
-                                hyperparams_features['embedding_dim'],
+    embedding_layer = Embedding(hyperparams_features['max_features'] + 2, ## todo based on vocabulary not param
+                                hyperparams_features['embedding_dim'],  ## todo based on loaded embedding not param
                                 input_length=hyperparams['maxlen'],
                                 embeddings_regularizer=regularizers.l2(hyperparams['l2_embeddings']),
                                 weights=[embedding_matrix],

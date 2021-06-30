@@ -55,13 +55,17 @@ def load_erisk_data(writings_df, liwc_categories, valid_prop=0.3,
 def load_daic_data(path_train="../data/daic-woz/train_data.json",
                    path_valid="../data/daic-woz/dev_data.json",
                    path_test="../data/daic-woz/test_data.json",
-                   include_only=["Ellie", "Participant"]):
+                   include_only=["Ellie", "Participant"],
+                   limit_size=False):
     with open(path_train, "r") as f:
         data_train = json.load(f)
+        data_train = data_train[:int((0.2 if limit_size else 1.0) * len(data_train))]
     with open(path_valid, "r") as f:
         data_valid = json.load(f)
+        data_valid = data_train[:int((0.2 if limit_size else 1.0) * len(data_valid))]
     with open(path_test, "r") as f:
         data_test = json.load(f)
+        data_test = data_train[:int((0.2 if limit_size else 1.0) * len(data_test))]
 
     training_subjects = [x["label"]["Participant_ID"] for x in data_train]
     valid_subjects = [x["label"]["Participant_ID"] for x in data_valid]

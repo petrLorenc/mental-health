@@ -255,7 +255,7 @@ if __name__ == '__main__':
         "lstm_units": 100,
         "lstm_units_user": 100,
         "max_posts_per_user": 15,
-        "batch_size": 32,
+        "batch_size": 64,
 
         # metrics
         "reduce_lr_factor": 0.5,
@@ -275,7 +275,7 @@ if __name__ == '__main__':
 
     hyperparams_features = {
         "max_features": 20000,
-        "embedding_dim": 300,
+        "embedding_dim": 30,
         "vocabulary_path": "../resources/generated/vocab_20000_erisk.txt",
         "nrc_lexicon_path": "../resources/NRC-Emotion-Lexicon-Wordlevel-v0.92.txt",
         "liwc_path": "../resources/liwc.dic",
@@ -319,15 +319,18 @@ if __name__ == '__main__':
     elif dataset == "daic":
         user_level_data, subjects_split = load_daic_data(path_train="../data/daic-woz/train_data.json",
                                                          path_valid="../data/daic-woz/dev_data.json",
-                                                         path_test="../data/daic-woz/test_data.json")
+                                                         path_test="../data/daic-woz/test_data.json",
+                                                         limit_size=args.smaller_data)
         if args.embeddings == "random" or args.embeddings == "glove":
-            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic(hyperparams,
+            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic(user_level_data, subjects_split, hyperparams,
                                                                                                        hyperparams_features)
         elif args.embeddings == "use":
-            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic_raw(hyperparams,
+            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic_raw(user_level_data, subjects_split,
+                                                                                                           hyperparams,
                                                                                                            hyperparams_features)
         elif args.embeddings == "bow":
-            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic_bow(user_level_data, subjects_split,hyperparams,
+            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic_bow(user_level_data, subjects_split,
+                                                                                                           hyperparams,
                                                                                                            hyperparams_features)
             hyperparams["bow_input_feature_size"] = data_generator_train.get_input_dimension()
         else:
@@ -346,6 +349,8 @@ if __name__ == '__main__':
         model_path = f'../resources/models/{args.model}_{args.embeddings}_{args.version}_{args.note}'
         # load saved model
         hyperparams, hyperparams_features = load_params(model_path=model_path)
-        model = load_saved_model_weights(model_path=model_path, hyperparams=hyperparams, hyperparams_features=hyperparams_features, h5=True)
+        logger.info(f"Loaded model from {model_path}")
+        model = load_saved_model_weights(model_path=model_path, hyperparams=hyperparams, hyperparams_features=hyperparams_features, h5=True,
+                                         args=args)
 
     test(model=model, data_generator_test=data_generator_test, experiment=experiment, logger=logger, hyperparams=hyperparams)

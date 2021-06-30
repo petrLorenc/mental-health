@@ -1,5 +1,5 @@
 from utils.metrics_decision_based import EriskScoresT1T2
-from loader.EriskDataGenerator import EriskDataGenerator
+from loader.EriskDataGeneratorFeatures import EriskDataGenerator
 import numpy as np
 
 def evaluate_for_subjects(model, subjects, user_level_data, hyperparams, hyperparams_features,

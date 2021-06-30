@@ -37,7 +37,7 @@ def load_vocabulary(path):
     vocabulary_dict = {}
     with open(path, "r") as f:
         for i, w in enumerate(f):
-            vocabulary_dict[w] = i
+            vocabulary_dict[w.strip()] = i
     return vocabulary_dict
 
 
@@ -67,5 +67,5 @@ def load_stopwords(path):
     stopwords_list = []
     with open(path) as f:
         for line in f:
-            stopwords_list.append(line)
+            stopwords_list.append(line.strip())
     return stopwords_list

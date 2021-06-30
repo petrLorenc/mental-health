@@ -5,7 +5,7 @@ import numpy as np
 from loader.AbstractDataGenerator import AbstractDataGenerator
 
 
-class DAICDataGeneratorRaw(AbstractDataGenerator):
+class DataGeneratorRaw(AbstractDataGenerator):
     """Generates data for Keras"""
 
     def __init__(self, user_level_data, subjects_split, set_type, hyperparams_features, batch_size, seq_len,

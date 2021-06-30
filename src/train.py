@@ -20,13 +20,9 @@ from load_save_model import save_model_and_params, load_params, load_saved_model
 from loader.data_loading import load_erisk_data, load_daic_data
 from resource_loading import load_NRC, load_LIWC, load_stopwords
 
-from train_utils.dataset import initialize_datasets_erisk
-from train_utils.dataset import initialize_datasets_erisk_raw
-from train_utils.dataset import initialize_datasets_erisk_bow
-
-from train_utils.dataset import initialize_datasets_daic
-from train_utils.dataset import initialize_datasets_daic_raw
-from train_utils.dataset import initialize_datasets_daic_bow
+from train_utils.dataset import initialize_datasets_hierarchical
+from train_utils.dataset import initialize_datasets_raw
+from train_utils.dataset import initialize_datasets_bow
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
@@ -274,8 +270,6 @@ if __name__ == '__main__':
     }
 
     hyperparams_features = {
-        "max_features": 20000,
-        "embedding_dim": 30,
         "vocabulary_path": "../resources/generated/vocab_20000_erisk.txt",
         "nrc_lexicon_path": "../resources/NRC-Emotion-Lexicon-Wordlevel-v0.92.txt",
         "liwc_path": "../resources/liwc.dic",
@@ -283,6 +277,14 @@ if __name__ == '__main__':
         "embeddings_path": "../resources/embeddings/glove.840B.300d.txt",
         "liwc_words_cached": "../resources/generated/liwc_categories_for_vocabulary_erisk_clpsych_stop_20K.pkl"
     }
+    if args.embeddings == "glove":
+        hyperparams_features["embedding_dim"] = 300
+    elif args.embeddings == "random":
+        hyperparams_features["embedding_dim"] = 300
+    elif args.embeddings == "use":
+        hyperparams_features["embedding_dim"] = 512
+    elif args.embeddings == "use":
+        hyperparams_features["embedding_dim"] = "dymamic"
 
     dataset = args.dataset
 
@@ -298,45 +300,32 @@ if __name__ == '__main__':
         liwc_categories = set(liwc_dict.keys())
         user_level_data, subjects_split = load_erisk_data(writings_df, liwc_categories=liwc_categories)
 
-        if args.embeddings == "random" or args.embeddings == "glove":
-            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_erisk(user_level_data,
-                                                                                                        subjects_split,
-                                                                                                        hyperparams,
-                                                                                                        hyperparams_features)
-        elif args.embeddings == "use":
-            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_erisk_raw(user_level_data,
-                                                                                                            subjects_split,
-                                                                                                            hyperparams,
-                                                                                                            hyperparams_features)
-        elif args.embeddings == "bow":
-            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_erisk_bow(user_level_data,
-                                                                                                            subjects_split,
-                                                                                                            hyperparams,
-                                                                                                            hyperparams_features)
-            hyperparams["bow_input_feature_size"] = data_generator_train.get_input_dimension()
-        else:
-            raise NotImplementedError(f"Embeddings {args.embeddings} not implemented yet")
     elif dataset == "daic":
         user_level_data, subjects_split = load_daic_data(path_train="../data/daic-woz/train_data.json",
                                                          path_valid="../data/daic-woz/dev_data.json",
                                                          path_test="../data/daic-woz/test_data.json",
                                                          limit_size=args.smaller_data)
-        if args.embeddings == "random" or args.embeddings == "glove":
-            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic(user_level_data, subjects_split, hyperparams,
-                                                                                                       hyperparams_features)
-        elif args.embeddings == "use":
-            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic_raw(user_level_data, subjects_split,
-                                                                                                           hyperparams,
-                                                                                                           hyperparams_features)
-        elif args.embeddings == "bow":
-            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_daic_bow(user_level_data, subjects_split,
-                                                                                                           hyperparams,
-                                                                                                           hyperparams_features)
-            hyperparams["bow_input_feature_size"] = data_generator_train.get_input_dimension()
-        else:
-            raise NotImplementedError(f"Embeddings {args.embeddings} not implemented yet")
     else:
-        raise NotImplementedError(f"Dataset {dataset} not recognized")
+        raise NotImplementedError(f"Not recognized dataset {dataset}")
+
+    if args.embeddings == "random" or args.embeddings == "glove":
+        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_hierarchical(user_level_data,
+                                                                                                           subjects_split,
+                                                                                                           hyperparams,
+                                                                                                           hyperparams_features)
+    elif args.embeddings == "use":
+        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_raw(user_level_data,
+                                                                                                  subjects_split,
+                                                                                                  hyperparams,
+                                                                                                  hyperparams_features)
+    elif args.embeddings == "bow":
+        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_bow(user_level_data,
+                                                                                                  subjects_split,
+                                                                                                  hyperparams,
+                                                                                                  hyperparams_features)
+        hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
+    else:
+        raise NotImplementedError(f"Embeddings {args.embeddings} not implemented yet")
 
     if not args.only_test:
         model, history = train(data_generator_train=data_generator_train,

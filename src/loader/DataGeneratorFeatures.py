@@ -14,7 +14,7 @@ from utils.feature_encoders import encode_emotions, encode_pronouns, encode_stop
 from loader.AbstractDataGenerator import AbstractDataGenerator
 
 
-class DAICDataGenerator(AbstractDataGenerator):
+class DataGeneratorHierarchical(AbstractDataGenerator):
     """Generates data for Keras"""
 
     def __init__(self, user_level_data, subjects_split, set_type, hyperparams_features, batch_size, seq_len,

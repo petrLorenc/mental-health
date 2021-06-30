@@ -15,12 +15,13 @@ import numpy as np
 def build_hierarchical_model(hyperparams, hyperparams_features,
                              emotions_dim, stopwords_list_dim, liwc_categories_dim, word_embedding_type,
                              ignore_layer=[]):
+    vocabulary = load_vocabulary(hyperparams_features["vocabulary_path"])
+
     if word_embedding_type == "random":
         # dummy embedding matrix - ONLY FOR TESTING
-        embedding_matrix = np.random.random((hyperparams_features['max_features'] + 2, hyperparams_features['embedding_dim'])) - 0.5
+        embedding_matrix = np.random.random((len(vocabulary), hyperparams_features['embedding_dim'])) - 0.5
     elif word_embedding_type == "glove":
         # real embedding matrix
-        vocabulary = load_vocabulary(hyperparams_features["vocabulary_path"])
         embedding_matrix = load_embeddings(embeddings_path=hyperparams_features['embeddings_path'],
                                            embedding_dim=hyperparams_features['embedding_dim'],
                                            vocabulary=vocabulary)
@@ -29,7 +30,7 @@ def build_hierarchical_model(hyperparams, hyperparams_features,
 
     # Post/sentence representation - word sequence
     tokens_features = Input(shape=(hyperparams['maxlen'],), name='word_seq')
-    embedding_layer = Embedding(hyperparams_features['max_features'] + 2, ## todo based on vocabulary not param
+    embedding_layer = Embedding(len(vocabulary),
                                 hyperparams_features['embedding_dim'],  ## todo based on loaded embedding not param
                                 input_length=hyperparams['maxlen'],
                                 embeddings_regularizer=regularizers.l2(hyperparams['l2_embeddings']),

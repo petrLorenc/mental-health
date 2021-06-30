@@ -41,7 +41,7 @@ class AbstractDataGenerator(Sequence):
         # Initialization of utils
         self.tokenizer = RegexpTokenizer(r'\w+')
         self.indexes = []
-        self.indexes_per_user = {u: [] for u in self.subjects_split[self.set] if u in self.data}
+        self.indexes_per_user = {u: [] for u in self.subjects_split[self.set] if u in self.data and len(self.data[u]["texts"]) > 0}
         self.indexes_with_user = []
 
         self.on_data_loaded()
@@ -53,9 +53,7 @@ class AbstractDataGenerator(Sequence):
             np.random.shuffle(self.indexes)
 
     def on_data_loaded(self):
-        for u in self.subjects_split[self.set]:
-            if u not in self.data:
-                continue
+        for u in self.indexes_per_user.keys():
             data = self.data[u]
             user_posts = data['texts']
 
@@ -67,6 +65,9 @@ class AbstractDataGenerator(Sequence):
                 for i in range(1, min(self.max_posts_per_user, nr_post_groups - 1)):
                     self.indexes_per_user[u].append(range(0, i))
                     self.indexes_with_user.append((u, range(0, i)))
+            elif nr_post_groups < self.max_posts_per_user:
+                self.indexes_per_user[u].append(range(0, nr_post_groups))
+                self.indexes_with_user.append((u, range(0, nr_post_groups)))
 
             for i in range(nr_post_groups):
                 # Stop at the last complete chunk
@@ -79,6 +80,7 @@ class AbstractDataGenerator(Sequence):
     def yield_data_grouped_by_users(self):
         frozen_users = list(self.indexes_per_user.keys())
         for user in frozen_users:
+            logger.debug(f"Testing {user} user")
             yield self.get_data_for_specific_user(user)
 
     def __getitem__(self, index):

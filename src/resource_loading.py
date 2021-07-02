@@ -24,16 +24,41 @@ def load_NRC(nrc_path):
 
 
 def load_LIWC(path):
-    liwc_dict = {}
-    for (w, c) in readDict(path):
-        if c not in liwc_dict:
-            liwc_dict[c] = []
-        liwc_dict[c].append(w)
-    return liwc_dict
+    num2emo = {}
+    whole_words = {}
+    asterisk_words = {}
+
+    with open(path, "r") as f:
+        opening_tag = False
+        for line in f:
+            line = line.strip()
+            if line == "%":
+                opening_tag = not opening_tag
+                continue
+            if opening_tag:
+                _id, _name = line.split("\t")
+                num2emo[_id] = [_name]
+            elif "*" not in line:
+                _name, *_categories = line.split("\t")
+                whole_words[_name] = _categories
+            elif "*" in line and not line.startswith("*"):
+                _name, *_categories = line.split("\t")
+                _chars = list(_name)
+                pointer = asterisk_words
+                for idx, char in enumerate(_chars):
+                    if char == "*":
+                        pointer["*"] = _categories
+                    else:
+                        if char not in pointer:
+                            pointer[char] = {}
+                        pointer = pointer[char]
+            else:
+                raise Exception(f"{line}")
+    return num2emo, whole_words, asterisk_words
 
 
 # PAD and UNK included (index 0, 1)
-def load_vocabulary(path):
+def load_dict_from_file(path):
     vocabulary_dict = {}
     with open(path, "r") as f:
         for i, w in enumerate(f):

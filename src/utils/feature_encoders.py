@@ -42,15 +42,37 @@ def encode_stopwords(tokens, stopwords_list=None, relative=True):
     return encoded_stopwords
 
 
-def encode_liwc_categories(tokens, liwc_categories, liwc_words_for_categories, relative=True):
-    categories_cnt = [0 for _ in liwc_categories]
-    if not tokens:
+class LIWC_vectorizer(object):
+    def __init__(self, num2emo, whole_words, asterisk_words):
+        self.num2emo = num2emo
+        self.num2idx = {num: idx for idx, num in enumerate(self.num2emo.keys())}
+        self.whole_words = whole_words
+        self.asterisk_words = asterisk_words
+
+    def get_vector(self, tokens, relative=True):
+        categories_cnt = [0] * len(self.num2idx)
+        for word in tokens:
+            categories = self.whole_words.get(word, None)
+            if categories is None:
+                chars = list(word)
+                pointer = self.asterisk_words
+                for ch in chars:
+                    if ch in pointer:
+                        pointer = pointer[ch]
+                if "*" in pointer:
+                    categories = pointer["*"]
+                else:
+                    # not found
+                    categories = []
+            for idx_category in categories:
+                categories_cnt[self.num2idx[idx_category]] += 1
+        text_len = len(tokens)
+        if relative:
+            for i in range(len(self.num2idx)):
+                categories_cnt[i] = categories_cnt[i] / text_len
         return categories_cnt
-    text_len = len(tokens)
-    for i, category in enumerate(liwc_categories):
-        for t in tokens:
-            if t in liwc_words_for_categories[category]:
-                categories_cnt[i] += 1
-        if relative and text_len:
-            categories_cnt[i] = categories_cnt[i] / text_len
-    return categories_cnt
+
+
+def encode_liwc_categories(tokens, vectorizer: LIWC_vectorizer, relative=True):
+    return vectorizer.get_vector(tokens, relative)
+

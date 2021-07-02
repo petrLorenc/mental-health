@@ -6,7 +6,7 @@ import pickle
 import numpy as np
 from nltk.tokenize import RegexpTokenizer
 from tensorflow.keras.utils import Sequence
-from resource_loading import load_NRC, load_vocabulary, load_list_from_file
+from resource_loading import load_NRC, load_dict_from_file, load_list_from_file
 
 
 class AbstractDataGenerator(Sequence):
@@ -16,11 +16,11 @@ class AbstractDataGenerator(Sequence):
                  user_level_data,
                  subjects_split,
                  set_type,
-                 hyperparams_features,
                  batch_size,
                  seq_len,
-                 max_posts_per_user=10,
-                 shuffle=True,
+                 max_posts_per_user,
+                 data_generator_id,
+                 shuffle=False,
                  keep_last_batch=True,
                  keep_first_batches=False):
         # Data initialization
@@ -43,6 +43,7 @@ class AbstractDataGenerator(Sequence):
         self.indexes = []
         self.indexes_per_user = {u: [] for u in self.subjects_split[self.set] if u in self.data and len(self.data[u]["texts"]) > 0}
         self.indexes_with_user = []
+        self.data_generator_id = data_generator_id
 
         self.on_data_loaded()
 
@@ -80,7 +81,7 @@ class AbstractDataGenerator(Sequence):
     def yield_data_grouped_by_users(self):
         frozen_users = list(self.indexes_per_user.keys())
         for user in frozen_users:
-            logger.debug(f"Testing {user} user")
+            logger.debug(f"{self.data_generator_id} generator generate data for {user} user")
             yield self.get_data_for_specific_user(user)
 
     def __getitem__(self, index):
@@ -98,7 +99,7 @@ class AbstractDataGenerator(Sequence):
 
         labels = np.array(labels, dtype=np.float32)
         try:
-            features = np.array(features)
+            features = np.array(features, dtype=np.float32)
         except:
             pass
         # user_texts = np.array(user_texts, dtype=np.str).reshape(-1, self.max_posts_per_user)
@@ -115,6 +116,8 @@ class AbstractDataGenerator(Sequence):
 
     @abstractmethod
     def __len__(self):
-        pass
+        if self.keep_last_batch:
+            return int(np.ceil(len(self.indexes) / self.batch_size))  # + 1 to not discard last batch
+        return int((len(self.indexes)) / self.batch_size)
 
 

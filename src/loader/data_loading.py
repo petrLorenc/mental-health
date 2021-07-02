@@ -2,11 +2,9 @@ from utils.logger import logger
 
 import json
 
-from resource_loading import load_NRC, load_LIWC, load_vocabulary
 
-
-def load_erisk_data(writings_df, liwc_categories, valid_prop=0.3,
-                    min_post_len=3, labelcol='label'):
+def load_erisk_data(writings_df, valid_prop=0.2,
+                    min_post_len=1, labelcol='label'):
     training_subjects = list(set(writings_df[writings_df['subset'] == 'train'].subject))
     test_subjects = list(set(writings_df[writings_df['subset'] == 'test'].subject))
 
@@ -14,7 +12,6 @@ def load_erisk_data(writings_df, liwc_categories, valid_prop=0.3,
     valid_subjects_size = int(len(training_subjects) * valid_prop)
     valid_subjects = training_subjects[:valid_subjects_size]
     training_subjects = training_subjects[valid_subjects_size:]
-    categories = [c for c in liwc_categories if c in writings_df.columns]
 
     subjects_split = {'train': training_subjects,
                       'valid': valid_subjects,
@@ -33,20 +30,16 @@ def load_erisk_data(writings_df, liwc_categories, valid_prop=0.3,
                 words.extend(row.tokenized_text)
                 raw_text += row.text
         if not words or len(words) < min_post_len:
-            #             logger.debug(row.subject)
             continue
         if labelcol == 'label':
             label = row.label
-        liwc_categs = [getattr(row, categ) for categ in categories]
         if row.subject not in user_level_texts.keys():
             user_level_texts[row.subject] = {}
             user_level_texts[row.subject]['texts'] = [words]
             user_level_texts[row.subject]['label'] = label
-            user_level_texts[row.subject]['liwc'] = [liwc_categs]
             user_level_texts[row.subject]['raw'] = [raw_text]
         else:
             user_level_texts[row.subject]['texts'].append(words)
-            user_level_texts[row.subject]['liwc'].append(liwc_categs)
             user_level_texts[row.subject]['raw'].append(raw_text)
 
     return user_level_texts, subjects_split
@@ -62,10 +55,10 @@ def load_daic_data(path_train="../data/daic-woz/train_data.json",
         data_train = data_train[:int((0.2 if limit_size else 1.0) * len(data_train))]
     with open(path_valid, "r") as f:
         data_valid = json.load(f)
-        data_valid = data_train[:int((0.2 if limit_size else 1.0) * len(data_valid))]
+        data_valid = data_valid[:int((0.2 if limit_size else 1.0) * len(data_valid))]
     with open(path_test, "r") as f:
         data_test = json.load(f)
-        data_test = data_train[:int((0.2 if limit_size else 1.0) * len(data_test))]
+        data_test = data_test[:int((0.2 if limit_size else 1.0) * len(data_test))]
 
     training_subjects = [x["label"]["Participant_ID"] for x in data_train]
     valid_subjects = [x["label"]["Participant_ID"] for x in data_valid]
@@ -92,11 +85,9 @@ def load_daic_data(path_train="../data/daic-woz/train_data.json",
                 user_level_texts[subject] = {}
                 user_level_texts[subject]['texts'] = [raw_text.split()]
                 user_level_texts[subject]['label'] = label
-                user_level_texts[subject]['liwc'] = [[]]
                 user_level_texts[subject]['raw'] = [raw_text]
             else:
                 user_level_texts[subject]['texts'].append(raw_text.split())
-                user_level_texts[subject]['liwc'].append([])
                 user_level_texts[subject]['raw'].append(raw_text)
 
     return user_level_texts, subjects_split

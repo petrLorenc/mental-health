@@ -1,32 +1,26 @@
 from utils.logger import logger
 
-import numpy as np
-
 from sklearn.feature_extraction.text import CountVectorizer
 from loader.AbstractDataGenerator import AbstractDataGenerator
 from resource_loading import load_list_from_file
 
+
 class DataGeneratorBow(AbstractDataGenerator):
     """Generates data for Keras"""
 
-    def __init__(self, user_level_data, subjects_split, set_type, hyperparams_features, batch_size, seq_len,
-                 max_posts_per_user=10, shuffle=True, keep_last_batch=True, keep_first_batches=False, vectorizer=None):
+    def __init__(self, user_level_data, subjects_split, set_type, hyperparams_features, batch_size, vectorizer=None, data_generator_id=""):
 
         if vectorizer is None:
-            vectorizer_vocabulary = load_list_from_file(hyperparams_features["bow_vocabulary"])
+            vectorizer_vocabulary = load_list_from_file(hyperparams_features["vocabulary_path"])
             self.vectorizer = CountVectorizer(vocabulary=vectorizer_vocabulary)
         else:
             self.vectorizer = vectorizer
 
-        super().__init__(user_level_data, subjects_split, set_type, hyperparams_features, batch_size, seq_len, max_posts_per_user, shuffle,
-                         keep_last_batch, keep_first_batches)
+        super().__init__(user_level_data=user_level_data, subjects_split=subjects_split, set_type=set_type, batch_size=batch_size,
+                         seq_len=None, max_posts_per_user=None, shuffle=False,
+                         keep_last_batch=True, keep_first_batches=True, data_generator_id=data_generator_id)
 
     def on_data_loaded(self):
-        # super().on_data_loaded()
-        # all_texts = [x for data in self.data.values() for x in data["raw"]]
-        # self.vectorizer = CountVectorizer() if self.vectorizer is None else self.vectorizer
-        # self.vectorizer.fit(all_texts)
-
         for u in self.subjects_split[self.set]:
             if u in self.data:
                 self.indexes_with_user.append((u, None))

@@ -1,16 +1,11 @@
 from utils.logger import logger
 
-import re
-import string
-import random
 import pickle
 import numpy as np
 
-from nltk.tokenize import RegexpTokenizer
-from tensorflow.keras.utils import Sequence
 from tensorflow.keras.preprocessing import sequence
-from resource_loading import load_NRC, load_LIWC, load_vocabulary, load_list_from_file
-from utils.feature_encoders import encode_emotions, encode_pronouns, encode_stopwords, encode_liwc_categories
+from resource_loading import load_NRC, load_dict_from_file, load_list_from_file, load_LIWC
+from utils.feature_encoders import encode_emotions, encode_pronouns, encode_stopwords, encode_liwc_categories, LIWC_vectorizer
 from loader.AbstractDataGenerator import AbstractDataGenerator
 
 
@@ -19,11 +14,11 @@ class DataGeneratorHierarchical(AbstractDataGenerator):
 
     def __init__(self, user_level_data, subjects_split, set_type, hyperparams_features, batch_size, seq_len,
                  max_posts_per_user=10, shuffle=True, keep_last_batch=True, keep_first_batches=False,
-                 ablate_emotions=False, ablate_liwc=False):
+                 ablate_emotions=False, ablate_liwc=False, data_generator_id=""):
 
         self.pronouns = ["i", "me", "my", "mine", "myself"]
 
-        self.vocabulary = load_vocabulary(hyperparams_features['vocabulary_path'])
+        self.vocabulary = load_dict_from_file(hyperparams_features['vocabulary_path'])
         self.voc_size = len(self.vocabulary)
 
         if ablate_emotions:
@@ -32,16 +27,16 @@ class DataGeneratorHierarchical(AbstractDataGenerator):
             self.emotion_lexicon = load_NRC(hyperparams_features['nrc_lexicon_path'])
             self.emotions = list(self.emotion_lexicon.keys())
 
-        self.liwc_words_for_categories = pickle.load(open(hyperparams_features["liwc_words_cached"], "rb"))
         if ablate_liwc:
-            self.liwc_categories = []
+            self.liwc_vectorizer = LIWC_vectorizer({}, [], {})
         else:
-            self.liwc_categories = set(self.liwc_words_for_categories.keys())
+            self.liwc_vectorizer = LIWC_vectorizer(*load_LIWC(hyperparams_features['liwc_path']))
 
         self.stopwords_list = load_list_from_file(hyperparams_features['stopwords_path'])
 
-        super().__init__(user_level_data, subjects_split, set_type, hyperparams_features, batch_size, seq_len, max_posts_per_user, shuffle,
-                         keep_last_batch, keep_first_batches)
+        super().__init__(user_level_data=user_level_data, subjects_split=subjects_split, set_type=set_type, batch_size=batch_size,
+                         seq_len=seq_len, max_posts_per_user=max_posts_per_user, shuffle=shuffle,
+                         keep_last_batch=keep_last_batch, keep_first_batches=keep_first_batches, data_generator_id=data_generator_id)
 
     def __encode_text__(self, tokens):
         # Using 1 value for UNK token
@@ -49,15 +44,9 @@ class DataGeneratorHierarchical(AbstractDataGenerator):
         encoded_emotions = encode_emotions(tokens, self.emotion_lexicon, self.emotions)
         encoded_pronouns = encode_pronouns(tokens, self.pronouns)
         encoded_stopwords = encode_stopwords(tokens, self.stopwords_list)
-        encoded_liwc = encode_liwc_categories(tokens, self.liwc_categories, self.liwc_words_for_categories)
+        encoded_liwc = encode_liwc_categories(tokens, self.liwc_vectorizer)
 
         return encoded_tokens, encoded_emotions, encoded_pronouns, encoded_stopwords, encoded_liwc
-
-    def __len__(self):
-        'Denotes the number of batches per epoch'
-        if self.keep_last_batch:
-            return int(np.ceil(len(self.indexes) / self.batch_size))  # + 1 to not discard last batch
-        return int((len(self.indexes)) / self.batch_size)
 
     def get_features_for_user_in_data_range(self, user, data_range):
         sequence_tokens = [self.data[user]['texts'][i] for i in data_range]

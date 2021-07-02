@@ -7,14 +7,18 @@ import argparse
 
 print(os.getcwd())
 
+import tensorflow as tf
+tf.random.set_seed(43)
+import numpy as np
+np.random.seed(43)
+
 from tensorflow.keras import callbacks
 from callbacks import FreezeLayer, WeightsHistory, LRHistory
-import tensorflow as tf
-import numpy as np
 
 from model.hierarchical_model import build_hierarchical_model
 from model.lstm import build_lstm_model
 from model.bow_logistic_regression import build_bow_log_regression_model
+from model.pure_lstm import build_pure_lstm_model
 
 from load_save_model import save_model_and_params, load_params, load_saved_model_weights
 from loader.data_loading import load_erisk_data, load_daic_data
@@ -23,6 +27,7 @@ from resource_loading import load_NRC, load_LIWC, load_list_from_file
 from train_utils.dataset import initialize_datasets_hierarchical
 from train_utils.dataset import initialize_datasets_raw
 from train_utils.dataset import initialize_datasets_bow
+from train_utils.dataset import initialize_datasets_use
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
@@ -75,26 +80,33 @@ def train_model(model, hyperparams,
     return model, history
 
 
-def initialize_model(hyperparams, hyperparams_features, word_embedding_type="random", model_type="hierarchical"):
+def initialize_model(hyperparams, hyperparams_features):
     logger.info("Initializing models...\n")
 
-    if model_type == "hierarchical":
+    if hyperparams["model"].startswith("hierarchical"):
         emotions_dim = 0 if 'emotions' in hyperparams['ignore_layer'] else len(load_NRC(hyperparams_features['nrc_lexicon_path']))
-        liwc_categories_dim = 0 if 'liwc' in hyperparams['ignore_layer'] else len(load_LIWC(hyperparams_features['liwc_path']))
         stopwords_dim = 0 if 'stopwords' in hyperparams['ignore_layer'] else len(load_list_from_file(hyperparams_features['stopwords_path']))
+
+        liwc_categories_dim = 0
+        if 'liwc' not in hyperparams['ignore_layer']:
+            num2emo, whole_words, asterisk_words = load_LIWC(hyperparams_features['liwc_path'])
+            liwc_categories_dim = len(num2emo)
 
         model = build_hierarchical_model(hyperparams, hyperparams_features,
                                          emotions_dim, stopwords_dim, liwc_categories_dim,
                                          ignore_layer=hyperparams['ignore_layer'],
-                                         word_embedding_type=word_embedding_type)
-    elif model_type == "lstm":
+                                         word_embedding_type=hyperparams["embeddings"])
+    elif hyperparams["model"] == "lstm":
         model = build_lstm_model(hyperparams, hyperparams_features)
 
-    elif model_type == "log_regression" and word_embedding_type == "bow":
+    elif hyperparams["model"] == "pure_lstm":
+        model = build_pure_lstm_model(hyperparams, hyperparams_features)
+
+    elif hyperparams["model"] == "log_regression":
         model = build_bow_log_regression_model(hyperparams, hyperparams_features)
 
     else:
-        raise NotImplementedError(f"Type of model {model_type} is not supported yet")
+        raise NotImplementedError(f"Type of model {hyperparams['model']} is not supported yet")
 
     # model.summary()
     return model
@@ -102,21 +114,19 @@ def initialize_model(hyperparams, hyperparams_features, word_embedding_type="ran
 
 def train(data_generator_train, data_generator_valid,
           hyperparams, hyperparams_features,
-          experiment, args,
+          experiment,
           start_epoch=0,
           model=None):
-    model_path = f'../resources/models/{args.model}_{args.embeddings}_{args.version}_{args.note}'
+    model_path = f'../resources/models/{hyperparams["model"]}_{hyperparams["embeddings"]}_{hyperparams["version"]}_{hyperparams["note"]}'
 
     if not model:
-        model = initialize_model(hyperparams, hyperparams_features,
-                                 word_embedding_type=args.embeddings,
-                                 model_type=args.model)
+        model = initialize_model(hyperparams, hyperparams_features)
     model.summary()
 
     print(model_path)
     model, history = train_model(model, hyperparams,
                                  data_generator_train, data_generator_valid,
-                                 epochs=args.epochs, start_epoch=start_epoch,
+                                 epochs=hyperparams["epochs"], start_epoch=start_epoch,
                                  class_weight={0: 1, 1: hyperparams['positive_class_weight']},
                                  callback_list=frozenset([
                                      'weights_history',
@@ -240,14 +250,14 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Train model')
     parser.add_argument('--version', metavar="-v", type=int, default=0, help='version of model')
-    parser.add_argument('--dataset', metavar="-d", type=str, default="daic", help='(supported "daic" or "erisk")')
-    parser.add_argument('--embeddings', type=str, default="random", help='(supported "random", "glove" or "use")')
-    parser.add_argument('--epochs', metavar="-e", type=int, default=10, help='number of epochs')
-    parser.add_argument('--model', metavar="-t", type=str, default="hierarchical", help="(supported 'hierarchical', 'lstm' or 'bow')")
+    parser.add_argument('--dataset', metavar="-d", type=str, help='(supported "daic" or "erisk")')
+    parser.add_argument('--embeddings', type=str, help='(supported "random", "glove" or "use")')
+    parser.add_argument('--epochs', metavar="-e", type=int, help='number of epochs')
+    parser.add_argument('--model', metavar="-t", type=str, help="(supported 'hierarchical', 'lstm' or 'bow')")
     parser.add_argument('--only_test', type=str2bool, help="Only test - loading trained model from disk")
     parser.add_argument('--smaller_data', type=str2bool, help="Only test data (small portion)")
-    parser.add_argument('--note', type=str, help="Note")
-    parser.add_argument('--bow_vocabulary', type=str, help="BoW vocabulary name")
+    parser.add_argument('--note', type=str, default="default", help="Note")
+    parser.add_argument('--vocabulary', type=str, help="BoW vocabulary name")
     args = parser.parse_args()
     logger.info(args)
 
@@ -258,19 +268,36 @@ if __name__ == '__main__':
         logger.info(f"Loaded model from {model_path}")
     else:
         hyperparams, hyperparams_features = load_params("../resources/default_config")
-        if args.embeddings == "glove":
+        if args.model == "hierarchical":
+            from model.hierarchical_model import hyperparams, hyperparams_features
             hyperparams_features["embedding_dim"] = 300
-        elif args.embeddings == "random":
+            if args.vocabulary is not None:
+                hyperparams_features['vocabulary_path'] = os.path.join("../resources/generated", args.vocabulary)
+
+        elif args.model == "hierarchicalRandom":
+            from model.hierarchical_model import hyperparams, hyperparams_features
             hyperparams_features["embedding_dim"] = 30
-        elif args.embeddings == "use":
+            hyperparams["embeddings"] = "random"
+            if args.vocabulary is not None:
+                hyperparams_features['vocabulary_path'] = os.path.join("../resources/generated", args.vocabulary)
+
+        elif args.model == "lstm":
+            from model.lstm import hyperparams, hyperparams_features
             hyperparams_features["embedding_dim"] = 512
-        elif args.embeddings == "bow":
-            hyperparams_features["bow_vocabulary"] = os.path.join("../resources/generated", args.bow_vocabulary)
+
+        elif args.model == "pure_lstm":
+            from model.pure_lstm import hyperparams, hyperparams_features
+            hyperparams_features["embedding_dim"] = 512
+
+        elif args.model == "log_regression":
+            from model.bow_logistic_regression import hyperparams, hyperparams_features
+            hyperparams_features["vocabulary_path"] = os.path.join("../resources/generated", args.vocabulary)
             hyperparams_features["embedding_dim"] = "dynamic"
 
-    dataset = args.dataset
+    # override from command line
+    hyperparams.update({k: v for k, v in vars(args).items() if v is not None})
 
-    experiment = initialize_experiment(hyperparams=hyperparams, args=args, hyperparams_features=hyperparams_features)
+    dataset = hyperparams["dataset"]
 
     logger.info("Initializing datasets...\n")
     if dataset == "erisk":
@@ -278,29 +305,34 @@ if __name__ == '__main__':
         if args.smaller_data:
             writings_df = writings_df.sample(frac=0.1)
 
-        liwc_dict = load_LIWC(hyperparams_features['liwc_path'])
-        liwc_categories = set(liwc_dict.keys())
-        user_level_data, subjects_split = load_erisk_data(writings_df, liwc_categories=liwc_categories)
+        user_level_data, subjects_split = load_erisk_data(writings_df)
 
     elif dataset == "daic":
         user_level_data, subjects_split = load_daic_data(path_train="../data/daic-woz/train_data.json",
                                                          path_valid="../data/daic-woz/dev_data.json",
                                                          path_test="../data/daic-woz/test_data.json",
+                                                         include_only=["Participant"],
+                                                         # include_only=["Ellie", "Participant"],
                                                          limit_size=args.smaller_data)
     else:
         raise NotImplementedError(f"Not recognized dataset {dataset}")
 
-    if args.embeddings == "random" or args.embeddings == "glove":
+    if hyperparams["embeddings"] == "random" or hyperparams["embeddings"] == "glove":
         data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_hierarchical(user_level_data,
                                                                                                            subjects_split,
                                                                                                            hyperparams,
                                                                                                            hyperparams_features)
-    elif args.embeddings == "use":
+    elif hyperparams["embeddings"] == "use":
         data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_raw(user_level_data,
                                                                                                   subjects_split,
                                                                                                   hyperparams,
                                                                                                   hyperparams_features)
-    elif args.embeddings == "bow":
+    elif hyperparams["embeddings"] == "use-raw":
+        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_use(user_level_data,
+                                                                                                  subjects_split,
+                                                                                                  hyperparams,
+                                                                                                  hyperparams_features)
+    elif hyperparams["embeddings"] == "bow":
         data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_bow(user_level_data,
                                                                                                   subjects_split,
                                                                                                   hyperparams,
@@ -308,18 +340,18 @@ if __name__ == '__main__':
         if hyperparams_features["embedding_dim"] == "dynamic":
             hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
     else:
-        raise NotImplementedError(f"Embeddings {args.embeddings} not implemented yet")
+        raise NotImplementedError(f"Embeddings {hyperparams['embeddings']} not implemented yet")
 
-    if not args.only_test:
+    experiment = initialize_experiment(hyperparams=hyperparams, hyperparams_features=hyperparams_features)
+
+    if not hyperparams["only_test"]:
         model, history = train(data_generator_train=data_generator_train,
                                data_generator_valid=data_generator_valid,
                                hyperparams=hyperparams,
                                hyperparams_features=hyperparams_features,
-                               experiment=experiment,
-                               args=args)
+                               experiment=experiment)
     else:
-        model = load_saved_model_weights(model_path=model_path, hyperparams=hyperparams, hyperparams_features=hyperparams_features, h5=True,
-                                         args=args)
+        model = load_saved_model_weights(model_path=model_path, hyperparams=hyperparams, hyperparams_features=hyperparams_features, h5=True)
 
     test(model=model,
          data_generator_valid=data_generator_valid,

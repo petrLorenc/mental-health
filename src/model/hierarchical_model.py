@@ -7,15 +7,56 @@ from tensorflow.keras import optimizers
 from tensorflow.keras import backend as K
 from tensorflow.keras.metrics import AUC
 from metrics import Metrics
-from resource_loading import load_embeddings, load_vocabulary
+from resource_loading import load_embeddings, load_dict_from_file
 
 import numpy as np
+
+hyperparams = {
+    "trainable_embeddings": True,
+    "dense_bow_units": 20,
+    "dense_numerical_units": 20,
+    "dense_user_units": 0,
+    "dropout": 0.1,
+    "l2_dense": 0.00011,
+    "l2_embeddings": 1e-07,
+    "norm_momentum": 0.1,
+    "ignore_layer": [],
+
+    "epochs": 50,
+    "embeddings": "glove",
+    "positive_class_weight": 2,
+    "maxlen": 50,
+    "lstm_units": 64,
+    "lstm_units_user": 64,
+    "max_posts_per_user": 15,
+    "batch_size": 64,
+
+    "reduce_lr_factor": 0.5,
+    "reduce_lr_patience": 55,
+    "scheduled_reduce_lr_freq": 95,
+    "scheduled_reduce_lr_factor": 0.5,
+    "threshold": 0.5,
+
+    "optimizer": "adam",
+    "decay": 0.001,
+    "lr": 5e-05,
+
+    "padding": "pre"
+}
+hyperparams_features = {
+    "vocabulary_path": "../resources/generated/vocab_20000_erisk.txt",
+    "nrc_lexicon_path": "../resources/NRC-Emotion-Lexicon-Wordlevel-v0.92.txt",
+    "liwc_path": "../resources/liwc.dic",
+    "stopwords_path": "../resources/stopwords.txt",
+    "embeddings_path": "../resources/embeddings/glove.840B.300d.txt",
+    "liwc_words_cached": "../resources/generated/liwc_categories_for_vocabulary_erisk_clpsych_stop_20K.pkl"
+}
 
 
 def build_hierarchical_model(hyperparams, hyperparams_features,
                              emotions_dim, stopwords_list_dim, liwc_categories_dim, word_embedding_type,
                              ignore_layer=[]):
-    vocabulary = load_vocabulary(hyperparams_features["vocabulary_path"])
+    vocabulary = load_dict_from_file(hyperparams_features["vocabulary_path"])
 
     if word_embedding_type == "random":
         # dummy embedding matrix - ONLY FOR TESTING
@@ -31,7 +72,7 @@ def build_hierarchical_model(hyperparams, hyperparams_features,
     # Post/sentence representation - word sequence
     tokens_features = Input(shape=(hyperparams['maxlen'],), name='word_seq')
     embedding_layer = Embedding(len(vocabulary),
-                                hyperparams_features['embedding_dim'],  ## todo based on loaded embedding not param
+                                hyperparams_features['embedding_dim'],
                                 input_length=hyperparams['maxlen'],
                                 embeddings_regularizer=regularizers.l2(hyperparams['l2_embeddings']),
                                 weights=[embedding_matrix],

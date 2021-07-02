@@ -1,12 +1,31 @@
 import numpy as np
 
 import tensorflow as tf
-import tensorflow_hub as hub
 import tensorflow.keras.backend as K
 from tensorflow.keras.metrics import AUC
-from tensorflow.keras.layers import LSTM, Concatenate, Lambda
 
 from metrics import Metrics
+
+hyperparams = {
+    "positive_class_weight": 2,
+    "max_posts_per_user": 15,
+    "batch_size": 64,
+    "epochs": 50,
+    "embeddings": "bow",
+
+    "reduce_lr_factor": 0.5,
+    "reduce_lr_patience": 55,
+    "scheduled_reduce_lr_freq": 95,
+    "scheduled_reduce_lr_factor": 0.5,
+    "threshold": 0.5,
+
+    "optimizer": "adam",
+}
+hyperparams_features = {
+    "vocabulary_path": "../resources/generated/vocab_20000_erisk.txt",
+    "nrc_lexicon_path": "../resources/NRC-Emotion-Lexicon-Wordlevel-v0.92.txt",
+    "liwc_path": "../resources/liwc.dic",
+}
 
 
 def build_bow_log_regression_model(hyperparams, hyperparams_features):
@@ -25,10 +44,3 @@ def build_bow_log_regression_model(hyperparams, hyperparams_features):
     model.summary()
     return model
 
-
-if __name__ == '__main__':
-    vector_size = 256
-    model = build_bow_log_regression_model(bow_vector=vector_size, hyperparams={"threshold": 0.5, "optimizer": "adam"}, hyperparams_features=None)
-    bow = np.random.random(size=(10, vector_size))
-    print(model.predict(bow))
-    # print(model.predict([[["a"], ["b"], ["c"]]]))

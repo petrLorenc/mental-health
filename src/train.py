@@ -8,17 +8,24 @@ import argparse
 print(os.getcwd())
 
 import tensorflow as tf
-tf.random.set_seed(43)
 import numpy as np
+import random
+
+tf.random.set_seed(43)
 np.random.seed(43)
+random.seed(43)
 
 from tensorflow.keras import callbacks
 from callbacks import FreezeLayer, WeightsHistory, LRHistory
+from nltk.tokenize import RegexpTokenizer
 
 from model.hierarchical_model import build_hierarchical_model
 from model.lstm import build_lstm_model
 from model.bow_logistic_regression import build_bow_log_regression_model
 from model.pure_lstm import build_pure_lstm_model
+from model.single_cell_lstm import build_stateful_lstm_model
+
+from utils_test import test, test_stateful
 
 from load_save_model import save_model_and_params, load_params, load_saved_model_weights
 from loader.data_loading import load_erisk_data, load_daic_data
@@ -28,6 +35,7 @@ from train_utils.dataset import initialize_datasets_hierarchical
 from train_utils.dataset import initialize_datasets_raw
 from train_utils.dataset import initialize_datasets_bow
 from train_utils.dataset import initialize_datasets_use
+from train_utils.dataset import initialize_datasets_stateful
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
@@ -59,24 +67,37 @@ def train_model(model, hyperparams,
     lr_schedule = callbacks.LearningRateScheduler(lambda epoch, lr:
                                                   lr if (epoch + 1) % hyperparams['scheduled_reduce_lr_freq'] != 0 else
                                                   lr * hyperparams['scheduled_reduce_lr_factor'], verbose=1)
+    early_stopping = callbacks.EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=3)
+    model_checkpoint = callbacks.ModelCheckpoint('best_model.h5', monitor='val_loss', mode='min', save_best_only=True)
     callbacks_dict = {
         # 'freeze_layer': freeze_layer,
         'weights_history': weights_history,
         'lr_history': lr_history,
         'reduce_lr_plateau': reduce_lr,
-        'lr_schedule': lr_schedule
+        'lr_schedule': lr_schedule,
+        'early_stopping': early_stopping,
+        'model_checkpoint': model_checkpoint
     }
 
     logger.info("Training model...\n")
-    history = model.fit_generator(data_generator_train,
-                                  # steps_per_epoch=100,
-                                  epochs=epochs, initial_epoch=start_epoch,
-                                  class_weight=class_weight,
-                                  validation_data=data_generator_valid,
-                                  verbose=verbose,
-                                  workers=workers,
-                                  use_multiprocessing=False,
-                                  callbacks=[callbacks_dict[c] for c in callback_list])
+    if "stateful" in hyperparams["model"]:
+        for e in range(epochs):
+            for data, label, _ in data_generator_train.yield_data_grouped_by_users():
+                model.reset_states()
+                labels = np.tile([label], len(data)).astype(np.float32)
+                for d, l in zip(data, labels):
+                    model.train_on_batch(np.array(d).reshape((1, 1, hyperparams_features["embedding_dim"])), np.array(l).reshape(1, 1))
+        history = None
+    else:
+        history = model.fit_generator(data_generator_train,
+                                      # steps_per_epoch=100,
+                                      epochs=epochs, initial_epoch=start_epoch,
+                                      class_weight=class_weight,
+                                      validation_data=data_generator_valid,
+                                      verbose=verbose,
+                                      workers=workers,
+                                      use_multiprocessing=False,
+                                      callbacks=[callbacks_dict[c] for c in callback_list])
     return model, history
 
 
@@ -105,6 +126,9 @@ def initialize_model(hyperparams, hyperparams_features):
     elif hyperparams["model"] == "log_regression":
         model = build_bow_log_regression_model(hyperparams, hyperparams_features)
 
+    elif hyperparams["model"] == "stateful_lstm":
+        model = build_stateful_lstm_model(hyperparams, hyperparams_features)
+
     else:
         raise NotImplementedError(f"Type of model {hyperparams['model']} is not supported yet")
 
@@ -132,7 +156,9 @@ def train(data_generator_train, data_generator_valid,
                                      'weights_history',
                                      'lr_history',
                                      'reduce_lr_plateau',
-                                     'lr_schedule'
+                                     'lr_schedule',
+                                     'model_checkpoint',
+                                     'early_stopping'
                                  ]),
                                  workers=1)
     logger.info("Saving model...\n")
@@ -143,94 +169,6 @@ def train(data_generator_train, data_generator_valid,
         logger.error("Could not save model.\n")
 
     return model, history
-
-
-def test(model, data_generator_valid, data_generator_test, experiment, logger, hyperparams):
-    logger.info("Testing model...\n")
-
-    ratios = []
-    ground_truth = []
-
-    step = 0
-    for data, label, _ in data_generator_valid.yield_data_grouped_by_users():
-        prediction = model.predict_on_batch(data)
-        experiment.log_histogram_3d(prediction, "Confidences - validation set", step=step)
-        # threshold for one sequence (typically set to 0.5)
-        prediction_for_user = [x for x in map(lambda x: x > hyperparams["threshold"], prediction)]
-        if len(prediction_for_user) > 1:
-            # working with sequences
-            ratio_of_depressed_sequences = sum(prediction_for_user) / len(prediction_for_user)
-        else:
-            # working with classification of whole datapoint for user (typically BoW)
-            ratio_of_depressed_sequences = prediction[0]
-        ratios.append(ratio_of_depressed_sequences)
-        ground_truth.append(label)
-        step += 1
-
-    experiment.log_histogram_3d(values=ratios, name="valid_ratio")
-
-    # find best threshold for ratio
-    best_threshold = 0.0
-    best_UAR = 0.5  # Unweighted Average Recall (UAR)
-    for tmp_threshold in np.linspace(0, 1, 50):
-        tmp_prediction = [int(x[0]) for x in map(lambda x: x > tmp_threshold, ratios)]
-        tmp_tp = sum([t == 1 and t == p for t, p in zip(ground_truth, tmp_prediction)])
-        tmp_tn = sum([t == 0 and t == p for t, p in zip(ground_truth, tmp_prediction)])
-        tmp_fp = sum([t == 0 and p == 1 for t, p in zip(ground_truth, tmp_prediction)])
-        tmp_fn = sum([t == 1 and p == 0 for t, p in zip(ground_truth, tmp_prediction)])
-
-        tmp_recall_1 = float(tmp_tp) / (float(tmp_tp + tmp_fn) + tf.keras.backend.epsilon())
-        tmp_recall_0 = float(tmp_tn) / (float(tmp_tn + tmp_fp) + tf.keras.backend.epsilon())
-        tmp_UAR = (tmp_recall_1 + tmp_recall_0) / 2
-        if tmp_UAR > best_UAR:
-            best_UAR = tmp_UAR
-            best_threshold = tmp_threshold
-
-    data_identifications = []
-    ratios = []
-    ground_truth = []
-
-    step = 0
-    for data, label, data_identification in data_generator_test.yield_data_grouped_by_users():
-        prediction = model.predict_on_batch(data)
-        experiment.log_histogram_3d(prediction, "Confidences - test set", step=step)
-        # threshold for one sequence (typically set to 0.5)
-        prediction_for_user = [x for x in map(lambda x: x > hyperparams["threshold"], prediction)]
-        if len(prediction_for_user) > 1:
-            # working with sequences
-            ratio_of_depressed_sequences = sum(prediction_for_user) / len(prediction_for_user)
-        else:
-            # working with classification of whole datapoint for user (typically BoW)
-            ratio_of_depressed_sequences = prediction[0]
-
-        ratios.append(ratio_of_depressed_sequences)
-        ground_truth.append(label)
-        data_identifications.append(data_identification)
-        step += 1
-
-    experiment.log_histogram_3d(values=ratios, name="test_ratio")
-
-    predictions = [int(x[0]) for x in map(lambda x: x > best_threshold, ratios)]
-    tp = sum([t == 1 and t == p for t, p in zip(ground_truth, predictions)])
-    tn = sum([t == 0 and t == p for t, p in zip(ground_truth, predictions)])
-    fp = sum([t == 0 and p == 1 for t, p in zip(ground_truth, predictions)])
-    fn = sum([t == 1 and p == 0 for t, p in zip(ground_truth, predictions)])
-
-    recall_1 = float(tp) / (float(tp + fn) + tf.keras.backend.epsilon())
-    recall_0 = float(tn) / (float(tn + fp) + tf.keras.backend.epsilon())
-    precision_0 = float(tp) / (float(tp + fp) + tf.keras.backend.epsilon())
-    precision_1 = float(tn) / (float(tn + fn) + tf.keras.backend.epsilon())
-    experiment.log_metric("test_recall_1", recall_1)
-    experiment.log_metric("test_recall_0", recall_0)
-    experiment.log_metric("test_precision_1", precision_0)
-    experiment.log_metric("test_precision_0", precision_1)
-
-    logger.debug(f"Recall_0: {recall_0}, Recall_1:{recall_1}, Precision_0:{precision_0}, Precision_1:{precision_1}")
-
-    experiment.log_confusion_matrix(y_true=ground_truth,
-                                    y_predicted=predictions,
-                                    labels=["0", "1"],
-                                    index_to_example_function=lambda x: data_identifications[x])
 
 
 if __name__ == '__main__':
@@ -270,12 +208,14 @@ if __name__ == '__main__':
         hyperparams, hyperparams_features = load_params("../resources/default_config")
         if args.model == "hierarchical":
             from model.hierarchical_model import hyperparams, hyperparams_features
+
             hyperparams_features["embedding_dim"] = 300
             if args.vocabulary is not None:
                 hyperparams_features['vocabulary_path'] = os.path.join("../resources/generated", args.vocabulary)
 
         elif args.model == "hierarchicalRandom":
             from model.hierarchical_model import hyperparams, hyperparams_features
+
             hyperparams_features["embedding_dim"] = 30
             hyperparams["embeddings"] = "random"
             if args.vocabulary is not None:
@@ -283,14 +223,22 @@ if __name__ == '__main__':
 
         elif args.model == "lstm":
             from model.lstm import hyperparams, hyperparams_features
+
             hyperparams_features["embedding_dim"] = 512
 
         elif args.model == "pure_lstm":
             from model.pure_lstm import hyperparams, hyperparams_features
+
+            hyperparams_features["embedding_dim"] = 512
+
+        elif args.model == "stateful_lstm":
+            from model.single_cell_lstm import hyperparams, hyperparams_features
+
             hyperparams_features["embedding_dim"] = 512
 
         elif args.model == "log_regression":
             from model.bow_logistic_regression import hyperparams, hyperparams_features
+
             hyperparams_features["vocabulary_path"] = os.path.join("../resources/generated", args.vocabulary)
             hyperparams_features["embedding_dim"] = "dynamic"
 
@@ -313,7 +261,8 @@ if __name__ == '__main__':
                                                          path_test="../data/daic-woz/test_data.json",
                                                          include_only=["Participant"],
                                                          # include_only=["Ellie", "Participant"],
-                                                         limit_size=args.smaller_data)
+                                                         limit_size=args.smaller_data,
+                                                         tokenizer=RegexpTokenizer(r'\w+'))
     else:
         raise NotImplementedError(f"Not recognized dataset {dataset}")
 
@@ -332,6 +281,11 @@ if __name__ == '__main__':
                                                                                                   subjects_split,
                                                                                                   hyperparams,
                                                                                                   hyperparams_features)
+    elif hyperparams["embeddings"] == "use-stateful":
+        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_stateful(user_level_data,
+                                                                                                       subjects_split,
+                                                                                                       hyperparams,
+                                                                                                       hyperparams_features)
     elif hyperparams["embeddings"] == "bow":
         data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_bow(user_level_data,
                                                                                                   subjects_split,
@@ -353,9 +307,16 @@ if __name__ == '__main__':
     else:
         model = load_saved_model_weights(model_path=model_path, hyperparams=hyperparams, hyperparams_features=hyperparams_features, h5=True)
 
-    test(model=model,
-         data_generator_valid=data_generator_valid,
-         data_generator_test=data_generator_test,
-         experiment=experiment,
-         logger=logger,
-         hyperparams=hyperparams)
+    if "stateful" in hyperparams["model"]:
+        test_stateful(model=model,
+                      data_generator_valid=data_generator_valid,
+                      data_generator_test=data_generator_test,
+                      experiment=experiment,
+                      hyperparams=hyperparams,
+                      hyperparams_features=hyperparams_features)
+    else:
+        test(model=model,
+             data_generator_valid=data_generator_valid,
+             data_generator_test=data_generator_test,
+             experiment=experiment,
+             hyperparams=hyperparams)

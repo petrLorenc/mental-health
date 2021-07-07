@@ -1,6 +1,9 @@
 from utils.logger import logger
 
 import json
+# cleaning the text
+import re
+import contractions
 
 
 def load_erisk_data(writings_df, valid_prop=0.2,
@@ -45,9 +48,18 @@ def load_erisk_data(writings_df, valid_prop=0.2,
     return user_level_texts, subjects_split
 
 
-def load_daic_data(path_train="../data/daic-woz/train_data.json",
-                   path_valid="../data/daic-woz/dev_data.json",
-                   path_test="../data/daic-woz/test_data.json",
+def remove_special_characters(text):
+    # define the pattern to keep
+    pat = r'[^a-zA-z0-9.,!?/:;\"\'\s]'
+    text = text.replace("_", "")
+    text = text.replace("'s", "")
+    return re.sub(pat, '', text)
+
+
+def load_daic_data(path_train,
+                   path_valid,
+                   path_test,
+                   tokenizer,
                    include_only=["Ellie", "Participant"],
                    limit_size=False):
     with open(path_train, "r") as f:
@@ -79,15 +91,18 @@ def load_daic_data(path_train="../data/daic-woz/train_data.json",
             if not utterance["speaker"] in include_only:
                 continue
             raw_text = utterance["value"]
+            raw_text = remove_special_characters(raw_text)
+            raw_text = contractions.fix(raw_text)
+
             label = int(row["label"]["PHQ8_Binary"])
             subject = row["label"]["Participant_ID"]
             if subject not in user_level_texts.keys():
                 user_level_texts[subject] = {}
-                user_level_texts[subject]['texts'] = [raw_text.split()]
+                user_level_texts[subject]['texts'] = tokenizer.tokenize(raw_text)
                 user_level_texts[subject]['label'] = label
                 user_level_texts[subject]['raw'] = [raw_text]
             else:
-                user_level_texts[subject]['texts'].append(raw_text.split())
+                user_level_texts[subject]['texts'].append(tokenizer.tokenize(raw_text))
                 user_level_texts[subject]['raw'].append(raw_text)
 
     return user_level_texts, subjects_split

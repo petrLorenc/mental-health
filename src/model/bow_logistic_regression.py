@@ -22,7 +22,6 @@ hyperparams = {
     "optimizer": "adam",
 }
 hyperparams_features = {
-    "vocabulary_path": "../resources/generated/vocab_20000_erisk.txt",
     "nrc_lexicon_path": "../resources/NRC-Emotion-Lexicon-Wordlevel-v0.92.txt",
     "liwc_path": "../resources/liwc.dic",
 }

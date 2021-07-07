@@ -4,6 +4,7 @@ from loader.DataGeneratorFeatures import DataGeneratorHierarchical
 from loader.DataGeneratorRaw import DataGeneratorRaw
 from loader.DataGeneratorBOW import DataGeneratorBow
 from loader.DataGeneratorUSE import DataGeneratorUSE
+from loader.DataGeneratorStateful import DataGeneratorStateful
 
 
 def initialize_datasets_hierarchical(user_level_data, subjects_split, hyperparams, hyperparams_features):
@@ -84,3 +85,21 @@ def initialize_datasets_bow(user_level_data, subjects_split, hyperparams, hyperp
                                            data_generator_id="test")
     return data_generator_train, data_generator_valid, data_generator_test
 
+
+def initialize_datasets_stateful(user_level_data, subjects_split, hyperparams, hyperparams_features):
+    import tensorflow_hub as hub
+    vectorizer = hub.load(hyperparams_features["module_url"])
+    data_generator_train = DataGeneratorStateful(user_level_data, subjects_split, set_type='train',
+                                                 batch_size=1,
+                                                 data_generator_id="train", vectorizer=vectorizer)
+
+    data_generator_valid = DataGeneratorStateful(user_level_data, subjects_split, set_type="valid",
+                                                 batch_size=1,
+                                                 vectorizer=data_generator_train.vectorizer,
+                                                 data_generator_id="valid")
+
+    data_generator_test = DataGeneratorStateful(user_level_data, subjects_split, set_type="test",
+                                                batch_size=1,
+                                                vectorizer=data_generator_train.vectorizer,
+                                                data_generator_id="test")
+    return data_generator_train, data_generator_valid, data_generator_test

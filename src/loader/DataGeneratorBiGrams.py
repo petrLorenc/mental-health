@@ -5,14 +5,14 @@ from loader.AbstractDataGenerator import AbstractDataGenerator
 from resource_loading import load_list_from_file
 
 
-class DataGeneratorBow(AbstractDataGenerator):
+class DataGeneratorBiGrams(AbstractDataGenerator):
     """Generates data for Keras"""
 
     def __init__(self, user_level_data, subjects_split, set_type, hyperparams_features, batch_size, vectorizer=None, data_generator_id=""):
 
         if vectorizer is None:
             vectorizer_vocabulary = load_list_from_file(hyperparams_features["vocabulary_path"])
-            self.vectorizer = CountVectorizer(vocabulary=vectorizer_vocabulary, ngram_range=(1, 1), min_df=2)
+            self.vectorizer = CountVectorizer(vocabulary=vectorizer_vocabulary, ngram_range=(1, 2))
         else:
             self.vectorizer = vectorizer
 

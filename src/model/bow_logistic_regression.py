@@ -43,3 +43,12 @@ def build_bow_log_regression_model(hyperparams, hyperparams_features):
     model.summary()
     return model
 
+
+def log_important_features(experiment, vocabulary, model):
+    weights = model.weights[0].numpy()
+    important_words_weights = [(vocabulary[x], weights[x][0]) for x in np.argsort([(x[0]) for x in weights])[::-1]]
+    for t, w in important_words_weights[:100]:
+        experiment.log_text(t, metadata={"weight": str(w), "sign": "positive"})
+
+    for t, w in important_words_weights[-100:]:
+        experiment.log_text(t, metadata={"weight": str(w), "sign": "negative"})

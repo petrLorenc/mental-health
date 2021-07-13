@@ -4,7 +4,7 @@ import tensorflow as tf
 import tensorflow_hub as hub
 import tensorflow.keras.backend as K
 from tensorflow.keras.metrics import AUC
-from tensorflow.keras.layers import LSTM, Concatenate, Lambda
+from tensorflow.keras.layers import LSTM, Concatenate, Lambda, GRU
 
 from metrics import Metrics
 
@@ -16,13 +16,12 @@ hyperparams = {
     "norm_momentum": 0.1,
     "ignore_layer": [],
 
-    "epochs": 50,
-    "embeddings": "use-raw",
+    "epochs": 10,
+    "embeddings": "use-stateful",
     "positive_class_weight": 2,
-    "maxlen": 50,
     "lstm_units_user": 100,
     "max_posts_per_user": 15,
-    "batch_size": 64,
+    "batch_size": 1,
 
     "reduce_lr_factor": 0.5,
     "reduce_lr_patience": 55,
@@ -41,11 +40,9 @@ hyperparams_features = {
 }
 
 
-def build_pure_lstm_model(hyperparams, hyperparams_features):
-    n_sentences = hyperparams['max_posts_per_user']
-
-    _input = tf.keras.layers.Input(shape=(n_sentences, hyperparams_features['embedding_dim'],))
-    x = LSTM(hyperparams['lstm_units_user'], return_sequences=False)(_input)
+def build_lstm_stateful_model(hyperparams, hyperparams_features):
+    _input = tf.keras.layers.Input(shape=(1, hyperparams_features['embedding_dim'],), batch_size=hyperparams["batch_size"])
+    x = GRU(512, stateful=True)(_input)
     _output = tf.keras.layers.Dense(1, activation="sigmoid")(x)
 
     model = tf.keras.Model(inputs=_input, outputs=_output)

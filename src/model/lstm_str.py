@@ -20,7 +20,7 @@ hyperparams = {
     "ignore_layer": [],
 
     "epochs": 50,
-    "embeddings": "use",
+    "embeddings": "use-str",
     "positive_class_weight": 2,
     "maxlen": 50,
     "lstm_units_user": 100,
@@ -44,7 +44,7 @@ hyperparams_features = {
 }
 
 
-def build_lstm_model(hyperparams, hyperparams_features):
+def build_lstm_with_str_input(hyperparams, hyperparams_features):
     n_sentences = hyperparams['max_posts_per_user']
 
     embedding_layer = hub.KerasLayer(hyperparams_features["module_url"], trainable=hyperparams["trainable_embeddings"])
@@ -65,10 +65,3 @@ def build_lstm_model(hyperparams, hyperparams_features):
     return model
 
 
-if __name__ == '__main__':
-    n_sentences = 4
-    model = build_lstm_model(hyperparams={"maxlen": n_sentences, "lstm_units_user": 64}, hyperparams_features=None)
-    sentences = [str(i) for i in range(n_sentences)]
-    X = [sentences, sentences[::-1]]  # 1 sample
-    print(model.predict(X))
-    # print(model.predict([[["a"], ["b"], ["c"]]]))

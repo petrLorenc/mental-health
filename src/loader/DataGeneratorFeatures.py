@@ -103,15 +103,13 @@ class DataGeneratorHierarchical(AbstractDataGenerator):
         return (user_tokens, user_categ_data, user_sparse_data), labels
 
     def get_data_for_specific_user(self, user):
-        label = self.data[user]['label']
-        raw_texts = self.data[user]["raw"]
-
-        features_tokens = []
-        features_categ = []
-        features_stopwords = []
-
         for range_indexes in self.indexes_per_user[user]:
+            features_tokens = []
+            features_categ = []
+            features_stopwords = []
+
             # Get features
+
             f_tokens, f_categ, f_stopwords = self.get_features_for_user_in_data_range(user, range_indexes)
             tokens_data_padded = np.array(sequence.pad_sequences(f_tokens, maxlen=self.seq_len,
                                                                  padding=self.padding,
@@ -120,20 +118,20 @@ class DataGeneratorHierarchical(AbstractDataGenerator):
             features_categ.append(f_categ)
             features_stopwords.append(f_stopwords)
 
-        user_tokens = sequence.pad_sequences(features_tokens,
-                                             maxlen=self.max_posts_per_user,
-                                             value=self.pad_value)
-        user_tokens = np.rollaxis(np.dstack(user_tokens), -1)
-        user_categ_data = sequence.pad_sequences(features_categ,
+            user_tokens = sequence.pad_sequences(features_tokens,
                                                  maxlen=self.max_posts_per_user,
-                                                 value=self.pad_value, dtype='float32')
-        user_categ_data = np.rollaxis(np.dstack(user_categ_data), -1)
+                                                 value=self.pad_value)
+            user_tokens = np.rollaxis(np.dstack(user_tokens), -1)
+            user_categ_data = sequence.pad_sequences(features_categ,
+                                                     maxlen=self.max_posts_per_user,
+                                                     value=self.pad_value, dtype='float32')
+            user_categ_data = np.rollaxis(np.dstack(user_categ_data), -1)
 
-        user_sparse_data = sequence.pad_sequences(features_stopwords,
-                                                  maxlen=self.max_posts_per_user,
-                                                  value=self.pad_value)
-        user_sparse_data = np.rollaxis(np.dstack(user_sparse_data), -1)
+            user_sparse_data = sequence.pad_sequences(features_stopwords,
+                                                      maxlen=self.max_posts_per_user,
+                                                      value=self.pad_value)
+            user_sparse_data = np.rollaxis(np.dstack(user_sparse_data), -1)
 
-        # data, label, data_identification
-        return (user_tokens, user_categ_data, user_sparse_data), label, raw_texts
+            # data, label, data_identification
+            yield user_tokens, user_categ_data, user_sparse_data
 

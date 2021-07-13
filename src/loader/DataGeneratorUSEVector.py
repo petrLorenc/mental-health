@@ -5,7 +5,8 @@ import numpy as np
 from loader.AbstractDataGenerator import AbstractDataGenerator
 from tensorflow.keras.preprocessing import sequence
 
-class DataGeneratorUSE(AbstractDataGenerator):
+
+class DataGeneratorUSEVector(AbstractDataGenerator):
     """Generates data for Keras"""
 
     def __init__(self, user_level_data, subjects_split, set_type, batch_size, seq_len, max_posts_per_user, data_generator_id, vectorizer, shuffle):
@@ -16,27 +17,22 @@ class DataGeneratorUSE(AbstractDataGenerator):
     def get_features_for_user_in_data_range(self, user, data_range):
         user_texts = [self.data[user]['raw'][i] for i in data_range]
 
-        for _ in range(0, self.max_posts_per_user - len(user_texts)):
-            user_texts.insert(0, "PAD")
+        if len(user_texts) == 0:
+            return np.zeros(shape=(self.max_posts_per_user, 512))
 
         current_batch = self.vectorizer(user_texts).numpy()
+        # padding with zeros
+        current_batch.resize((self.max_posts_per_user, 512), refcheck=False)
+
         return current_batch
 
     def get_data_for_specific_user(self, user):
-        label = self.data[user]['label']
-        user_texts = []
-        raw_texts = []
         for indexes in self.indexes_per_user[user]:
             raw_text_array = [self.data[user]['raw'][i] for i in indexes]
-            for _ in range(0,  self.max_posts_per_user - len(raw_text_array)):
-                raw_text_array.insert(0, "PAD")
 
-            raw_texts.append(" ".join(raw_text_array))
-            user_texts.append(self.vectorizer(raw_text_array).numpy())
-
-        # tokens_data_padded = np.array(sequence.pad_sequences(f_tokens, maxlen=self.seq_len,
-        #                                                      padding=self.padding,
-        #                                                      truncating=self.padding))
-
-        return np.array(user_texts, dtype=np.float32).reshape((-1, self.max_posts_per_user, 512)), label, raw_texts
-
+            if len(raw_text_array) == 0:
+                yield np.zeros(shape=(1, self.max_posts_per_user, 512))
+            else:
+                o = self.vectorizer(raw_text_array).numpy()
+                o.resize((1, self.max_posts_per_user, 512), refcheck=False)
+                yield np.array(o, dtype=np.float32)

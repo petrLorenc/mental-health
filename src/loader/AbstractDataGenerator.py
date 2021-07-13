@@ -72,17 +72,17 @@ class AbstractDataGenerator(Sequence):
 
             for i in range(nr_post_groups):
                 # Stop at the last complete chunk
-                if i + self.max_posts_per_user > len(user_posts):
+                if i + self.max_posts_per_user > nr_post_groups:
                     break
-                self.indexes_per_user[u].append(range(i, min(i + self.max_posts_per_user, len(user_posts))))
-                self.indexes_with_user.append((u, range(i, min(i + self.max_posts_per_user, len(user_posts)))))
+                self.indexes_per_user[u].append(range(i, min(i + self.max_posts_per_user, nr_post_groups)))
+                self.indexes_with_user.append((u, range(i, min(i + self.max_posts_per_user, nr_post_groups))))
         self.on_epoch_end()
 
     def yield_data_grouped_by_users(self):
         frozen_users = list(self.indexes_per_user.keys())
         for user in frozen_users:
             logger.debug(f"{self.data_generator_id} generator generate data for {user} user")
-            yield self.get_data_for_specific_user(user)
+            yield self.get_data_for_specific_user(user), self.get_label_for_specific_user(user), self.get_text_for_specific_user(user)
 
     def __getitem__(self, index):
         """Generate one batch of data"""
@@ -97,14 +97,23 @@ class AbstractDataGenerator(Sequence):
             # Get features
             features.append(self.get_features_for_user_in_data_range(user, range_indexes))
 
-        labels = np.array(labels, dtype=np.float32)
+        labels = np.array( labels, dtype=np.float32)
         try:
             features = np.array(features, dtype=np.float32)
         except:
-            pass
+            try:
+                features = np.array(features, dtype=np.str)
+            except:
+                pass
+
         # user_texts = np.array(user_texts, dtype=np.str).reshape(-1, self.max_posts_per_user)
         return features, labels
 
+    def get_label_for_specific_user(self, user):
+        return self.data[user]["label"]
+
+    def get_text_for_specific_user(self, user):
+        return self.data[user]["raw"]
 
     @abstractmethod
     def get_features_for_user_in_data_range(self, user, data_range):

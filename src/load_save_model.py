@@ -44,8 +44,7 @@ def load_saved_model_weights(model_path, hyperparams, hyperparams_features, h5=F
         'precision_m': metrics_class.precision_m,
         'recall_m': metrics_class.recall_m,
     }
-    loaded_model = initialize_model(hyperparams, hyperparams_features, word_embedding_type=hyperparams["embeddings"],
-                                    model_type=hyperparams["model"])
+    loaded_model = initialize_model(hyperparams, hyperparams_features)
     # loaded_model.summary()
     path = model_path + "_weights"
     by_name = False

@@ -98,7 +98,7 @@ def load_daic_data(path_train,
             subject = row["label"]["Participant_ID"]
             if subject not in user_level_texts.keys():
                 user_level_texts[subject] = {}
-                user_level_texts[subject]['texts'] = tokenizer.tokenize(raw_text)
+                user_level_texts[subject]['texts'] = [tokenizer.tokenize(raw_text)]
                 user_level_texts[subject]['label'] = label
                 user_level_texts[subject]['raw'] = [raw_text]
             else:

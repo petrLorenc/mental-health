@@ -20,10 +20,10 @@ from callbacks import FreezeLayer, WeightsHistory, LRHistory
 from nltk.tokenize import RegexpTokenizer
 
 from model.hierarchical_model import build_hierarchical_model
-from model.lstm import build_lstm_model
+from model.lstm_str import build_lstm_with_str_input
 from model.bow_logistic_regression import build_bow_log_regression_model
-from model.pure_lstm import build_pure_lstm_model
-from model.single_cell_lstm import build_stateful_lstm_model
+from model.lstm_vector import build_lstm_with_vector_input
+from model.lstm_stateful import build_lstm_stateful_model
 
 from utils_test import test, test_stateful
 
@@ -32,16 +32,17 @@ from loader.data_loading import load_erisk_data, load_daic_data
 from resource_loading import load_NRC, load_LIWC, load_list_from_file
 
 from train_utils.dataset import initialize_datasets_hierarchical
-from train_utils.dataset import initialize_datasets_raw
+from train_utils.dataset import initialize_datasets_str
 from train_utils.dataset import initialize_datasets_bow
-from train_utils.dataset import initialize_datasets_use
+from train_utils.dataset import initialize_datasets_bigrams
+from train_utils.dataset import initialize_datasets_use_vector
 from train_utils.dataset import initialize_datasets_stateful
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
 if gpus:
-    tf.config.experimental.set_visible_devices(devices=gpus[1], device_type='GPU')
-    tf.config.experimental.set_memory_growth(device=gpus[1], enable=True)
+    tf.config.experimental.set_visible_devices(devices=gpus[0], device_type='GPU')
+    tf.config.experimental.set_memory_growth(device=gpus[0], enable=True)
 
 # When cudnn implementation not found, run this
 # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
@@ -68,7 +69,9 @@ def train_model(model, hyperparams,
                                                   lr if (epoch + 1) % hyperparams['scheduled_reduce_lr_freq'] != 0 else
                                                   lr * hyperparams['scheduled_reduce_lr_factor'], verbose=1)
     early_stopping = callbacks.EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=3)
-    model_checkpoint = callbacks.ModelCheckpoint('best_model.h5', monitor='val_loss', mode='min', save_best_only=True)
+    model_checkpoint = callbacks.ModelCheckpoint(
+        f'../resources/generated/{hyperparams["model"]}_{hyperparams["embeddings"]}_{hyperparams["version"]}_{hyperparams["note"]}_best_model.h5',
+        monitor='val_loss', mode='min', save_best_only=True)
     callbacks_dict = {
         # 'freeze_layer': freeze_layer,
         'weights_history': weights_history,
@@ -117,17 +120,17 @@ def initialize_model(hyperparams, hyperparams_features):
                                          emotions_dim, stopwords_dim, liwc_categories_dim,
                                          ignore_layer=hyperparams['ignore_layer'],
                                          word_embedding_type=hyperparams["embeddings"])
-    elif hyperparams["model"] == "lstm":
-        model = build_lstm_model(hyperparams, hyperparams_features)
+    elif hyperparams["model"] == "lstm_str":
+        model = build_lstm_with_str_input(hyperparams, hyperparams_features)
 
-    elif hyperparams["model"] == "pure_lstm":
-        model = build_pure_lstm_model(hyperparams, hyperparams_features)
+    elif hyperparams["model"] == "lstm_vector":
+        model = build_lstm_with_vector_input(hyperparams, hyperparams_features)
 
     elif hyperparams["model"] == "log_regression":
         model = build_bow_log_regression_model(hyperparams, hyperparams_features)
 
-    elif hyperparams["model"] == "stateful_lstm":
-        model = build_stateful_lstm_model(hyperparams, hyperparams_features)
+    elif hyperparams["model"] == "lstm_stateful":
+        model = build_lstm_stateful_model(hyperparams, hyperparams_features)
 
     else:
         raise NotImplementedError(f"Type of model {hyperparams['model']} is not supported yet")
@@ -199,7 +202,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     logger.info(args)
 
-    model_path = f'../resources/models/{args.model}_{args.embeddings}_{args.version}_{args.note}'
+    model_path = f'../resources/models/{args.model}_{args.embeddings}_{args.version}{"_" + args.note if args.note else ""}'
     if args.only_test:
         # load saved model
         hyperparams, hyperparams_features = load_params(model_path=model_path)
@@ -221,18 +224,18 @@ if __name__ == '__main__':
             if args.vocabulary is not None:
                 hyperparams_features['vocabulary_path'] = os.path.join("../resources/generated", args.vocabulary)
 
-        elif args.model == "lstm":
-            from model.lstm import hyperparams, hyperparams_features
+        elif args.model == "lstm_str":
+            from model.lstm_str import hyperparams, hyperparams_features
 
             hyperparams_features["embedding_dim"] = 512
 
-        elif args.model == "pure_lstm":
-            from model.pure_lstm import hyperparams, hyperparams_features
+        elif args.model == "lstm_vector":
+            from model.lstm_vector import hyperparams, hyperparams_features
 
             hyperparams_features["embedding_dim"] = 512
 
-        elif args.model == "stateful_lstm":
-            from model.single_cell_lstm import hyperparams, hyperparams_features
+        elif args.model == "lstm_stateful":
+            from model.lstm_stateful import hyperparams, hyperparams_features
 
             hyperparams_features["embedding_dim"] = 512
 
@@ -241,6 +244,8 @@ if __name__ == '__main__':
 
             hyperparams_features["vocabulary_path"] = os.path.join("../resources/generated", args.vocabulary)
             hyperparams_features["embedding_dim"] = "dynamic"
+        else:
+            raise Exception(f"Unknown model {args.model}")
 
     # override from command line
     hyperparams.update({k: v for k, v in vars(args).items() if v is not None})
@@ -271,16 +276,16 @@ if __name__ == '__main__':
                                                                                                            subjects_split,
                                                                                                            hyperparams,
                                                                                                            hyperparams_features)
-    elif hyperparams["embeddings"] == "use":
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_raw(user_level_data,
+    elif hyperparams["embeddings"] == "use-str":
+        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_str(user_level_data,
                                                                                                   subjects_split,
                                                                                                   hyperparams,
                                                                                                   hyperparams_features)
-    elif hyperparams["embeddings"] == "use-raw":
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_use(user_level_data,
-                                                                                                  subjects_split,
-                                                                                                  hyperparams,
-                                                                                                  hyperparams_features)
+    elif hyperparams["embeddings"] == "use-vector":
+        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_use_vector(user_level_data,
+                                                                                                         subjects_split,
+                                                                                                         hyperparams,
+                                                                                                         hyperparams_features)
     elif hyperparams["embeddings"] == "use-stateful":
         data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_stateful(user_level_data,
                                                                                                        subjects_split,
@@ -291,6 +296,13 @@ if __name__ == '__main__':
                                                                                                   subjects_split,
                                                                                                   hyperparams,
                                                                                                   hyperparams_features)
+        if hyperparams_features["embedding_dim"] == "dynamic":
+            hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
+    elif hyperparams["embeddings"] == "bigrams":
+        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_bigrams(user_level_data,
+                                                                                                      subjects_split,
+                                                                                                      hyperparams,
+                                                                                                      hyperparams_features)
         if hyperparams_features["embedding_dim"] == "dynamic":
             hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
     else:
@@ -306,6 +318,12 @@ if __name__ == '__main__':
                                experiment=experiment)
     else:
         model = load_saved_model_weights(model_path=model_path, hyperparams=hyperparams, hyperparams_features=hyperparams_features, h5=True)
+
+    if hyperparams["model"] == "log_regression":
+        from model.bow_logistic_regression import log_important_features
+
+        vocabulary = {v: k for k, v in data_generator_valid.vectorizer.vocabulary_.items()}
+        log_important_features(experiment=experiment, vocabulary=vocabulary, model=model)
 
     if "stateful" in hyperparams["model"]:
         test_stateful(model=model,

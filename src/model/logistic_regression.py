@@ -11,7 +11,7 @@ hyperparams = {
     "max_posts_per_user": 15,
     "batch_size": 64,
     "epochs": 50,
-    "embeddings": "bow",
+    "embeddings": "unigrams",
 
     "reduce_lr_factor": 0.5,
     "reduce_lr_patience": 55,

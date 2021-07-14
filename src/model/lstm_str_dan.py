@@ -40,11 +40,12 @@ hyperparams = {
     "padding": "pre"
 }
 hyperparams_features = {
-    "module_url": "../resources/embeddings/use-4"
+    "module_url": "../resources/embeddings/use-4",
+    "embedding_dim": 512
 }
 
 
-def build_lstm_with_str_input(hyperparams, hyperparams_features):
+def build_lstm_with_str_input_dan(hyperparams, hyperparams_features):
     n_sentences = hyperparams['max_posts_per_user']
 
     embedding_layer = hub.KerasLayer(hyperparams_features["module_url"], trainable=hyperparams["trainable_embeddings"])

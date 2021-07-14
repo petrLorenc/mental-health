@@ -123,7 +123,6 @@ class AbstractDataGenerator(Sequence):
     def get_data_for_specific_user(self, user):
         pass
 
-    @abstractmethod
     def __len__(self):
         if self.keep_last_batch:
             return int(np.ceil(len(self.indexes) / self.batch_size))  # + 1 to not discard last batch

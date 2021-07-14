@@ -3,14 +3,14 @@ from utils.logger import logger
 import numpy as np
 
 from loader.AbstractDataGenerator import AbstractDataGenerator
-from tensorflow.keras.preprocessing import sequence
 
 
 class DataGeneratorUSEVector(AbstractDataGenerator):
     """Generates data for Keras"""
 
-    def __init__(self, user_level_data, subjects_split, set_type, batch_size, seq_len, max_posts_per_user, data_generator_id, vectorizer, shuffle):
+    def __init__(self, user_level_data, subjects_split, set_type, batch_size, seq_len, max_posts_per_user, data_generator_id, vectorizer, shuffle, embedding_dimension):
         self.vectorizer = vectorizer
+        self.embedding_dimension = embedding_dimension
         super().__init__(user_level_data=user_level_data, subjects_split=subjects_split, set_type=set_type, batch_size=batch_size,
                          seq_len=seq_len, max_posts_per_user=max_posts_per_user, data_generator_id=data_generator_id, shuffle=shuffle)
 
@@ -18,11 +18,11 @@ class DataGeneratorUSEVector(AbstractDataGenerator):
         user_texts = [self.data[user]['raw'][i] for i in data_range]
 
         if len(user_texts) == 0:
-            return np.zeros(shape=(self.max_posts_per_user, 512))
+            return np.zeros(shape=(self.max_posts_per_user, self.embedding_dimension))
 
         current_batch = self.vectorizer(user_texts).numpy()
         # padding with zeros
-        current_batch.resize((self.max_posts_per_user, 512), refcheck=False)
+        current_batch.resize((self.max_posts_per_user, self.embedding_dimension), refcheck=False)
 
         return current_batch
 
@@ -31,8 +31,8 @@ class DataGeneratorUSEVector(AbstractDataGenerator):
             raw_text_array = [self.data[user]['raw'][i] for i in indexes]
 
             if len(raw_text_array) == 0:
-                yield np.zeros(shape=(1, self.max_posts_per_user, 512))
+                yield np.zeros(shape=(1, self.max_posts_per_user, self.embedding_dimension))
             else:
                 o = self.vectorizer(raw_text_array).numpy()
-                o.resize((1, self.max_posts_per_user, 512), refcheck=False)
+                o.resize((1, self.max_posts_per_user, self.embedding_dimension), refcheck=False)
                 yield np.array(o, dtype=np.float32)

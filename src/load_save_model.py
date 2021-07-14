@@ -36,7 +36,7 @@ def load_saved_model(model_path, hyperparams):
 
 
 def load_saved_model_weights(model_path, hyperparams, hyperparams_features, h5=False):
-    from train import initialize_model  # to avoid cycle of dependencies
+    from main import initialize_model  # to avoid cycle of dependencies
 
     metrics_class = Metrics(threshold=hyperparams['threshold'])
     dependencies = {

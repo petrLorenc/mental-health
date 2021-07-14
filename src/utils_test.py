@@ -123,8 +123,8 @@ def log_results(experiment, ground_truth, predictions, data_identifications):
 
     experiment.log_metric("test_recall_1", recall_1)
     experiment.log_metric("test_recall_0", recall_0)
-    experiment.log_metric("test_precision_1", precision_0)
-    experiment.log_metric("test_precision_0", precision_1)
+    experiment.log_metric("test_precision_1", precision_1)
+    experiment.log_metric("test_precision_0", precision_0)
 
     experiment.log_metric("test_UAR", float(recall_0 + recall_1) / 2.0)
     experiment.log_metric("test_UAP", float(precision_0 + precision_1) / 2.0)
@@ -139,7 +139,7 @@ def log_results(experiment, ground_truth, predictions, data_identifications):
     logger.debug(f"UAR (sklearn): {np.average(UAR)}")
     logger.debug(f"UAP: {float(precision_0 + precision_1) / 2.0}")
     logger.debug(f"UAP (sklearn): {np.average(UAP)}")
-    logger.debug(f"F1: {np.average([(2*recall_0 * precision_0)/(recall_0 + precision_0), (2*recall_1 * precision_1)/(recall_1 + precision_1)])}")
+    logger.debug(f"F1: {np.average([(2*recall_0 * precision_0)/(recall_0 + precision_0 + tf.keras.backend.epsilon()), (2*recall_1 * precision_1)/(recall_1 + precision_1 + tf.keras.backend.epsilon())])}")
     logger.debug(f"F1 (sklearn): {f1_score(y_true=ground_truth, y_pred=predictions, average='macro')}")
     logger.debug(f"F1 (sklearn 2): {np.average(uF1)} for {uF1} (class 1, 0)")
 

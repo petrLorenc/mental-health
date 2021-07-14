@@ -5,14 +5,14 @@ from loader.AbstractDataGenerator import AbstractDataGenerator
 from resource_loading import load_list_from_file
 
 
-class DataGeneratorBow(AbstractDataGenerator):
+class DataGeneratorUnigrams(AbstractDataGenerator):
     """Generates data for Keras"""
 
     def __init__(self, user_level_data, subjects_split, set_type, hyperparams_features, batch_size, vectorizer=None, data_generator_id=""):
 
         if vectorizer is None:
             vectorizer_vocabulary = load_list_from_file(hyperparams_features["vocabulary_path"])
-            self.vectorizer = CountVectorizer(vocabulary=vectorizer_vocabulary, ngram_range=(1, 1), min_df=2)
+            self.vectorizer = CountVectorizer(vocabulary=vectorizer_vocabulary, ngram_range=(1, 1))
         else:
             self.vectorizer = vectorizer
 
@@ -31,12 +31,12 @@ class DataGeneratorBow(AbstractDataGenerator):
         # data_range not used for BoW
         user_texts = " ".join([x for x in self.data[user]["raw"]])
 
-        return self.vectorizer.transform([user_texts]).toarray()
+        return self.vectorizer.transform([user_texts]).toarray().reshape(1, -1)
 
     def get_data_for_specific_user(self, user):
         user_texts = " ".join([x for x in self.data[user]["raw"]])
 
-        yield self.vectorizer.transform([user_texts]).toarray()
+        yield self.vectorizer.transform([user_texts]).toarray().reshape(1, -1)
 
     def __len__(self):
         return len(self.indexes_per_user) - 1

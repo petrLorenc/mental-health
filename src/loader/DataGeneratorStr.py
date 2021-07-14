@@ -23,5 +23,5 @@ class DataGeneratorStr(AbstractDataGenerator):
             for _ in range(0, self.max_posts_per_user - len(raw_texts)):
                 raw_texts.insert(0, "")
 
-            yield np.array(raw_texts, dtype=np.str)
+            yield np.array(raw_texts, dtype=np.str).reshape(1, -1)
 

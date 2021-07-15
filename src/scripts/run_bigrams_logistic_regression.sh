@@ -1,3 +1,5 @@
+cd ..
+
 python main.py --dataset daic --model log_regression --embeddings bigrams --epochs 50 --only_test False --smaller_data False --version 1  --vocabulary ../generated/vocab_daic/bigrams_3138.txt --note daic_bigrams_3138
 python main.py --dataset daic --model log_regression --embeddings bigrams --epochs 50 --only_test False --smaller_data False --version 1 --vocabulary ../generated/vocab_daic/bigrams_16841.txt --note daic_bigrams_16841
 

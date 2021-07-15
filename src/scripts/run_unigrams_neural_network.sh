@@ -1,3 +1,5 @@
+cd ..
+
 python main.py --dataset daic --model neural_network --embeddings unigrams --epochs 50 --only_test False --smaller_data False --version 1  --vocabulary ../generated/vocab_daic/unigrams_3138.txt --note daic_unigrams_3138
 python main.py --dataset daic --model neural_network --embeddings unigrams --epochs 50 --only_test False --smaller_data False --version 1 --vocabulary ../generated/vocab_daic/unigrams_5924.txt --note daic_unigrams_5924
 

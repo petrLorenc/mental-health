@@ -26,6 +26,7 @@ from model.lstm_vector_tran import build_lstm_with_vector_input_tran
 from model.lstm_stateful import build_lstm_stateful_model
 from model.neural_network import build_neural_network_model
 from model.neural_network_features import build_neural_network_model_features
+from model.lstm_vector_distillbert import build_lstm_with_vector_input_distillbert
 
 from utils_test import test, test_stateful
 from utils_train import train
@@ -41,6 +42,7 @@ from train_utils.dataset import initialize_datasets_unigrams
 from train_utils.dataset import initialize_datasets_bigrams
 from train_utils.dataset import initialize_datasets_use_vector
 from train_utils.dataset import initialize_datasets_stateful
+from train_utils.dataset import initialize_datasets_distillbert_vector
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
@@ -82,6 +84,9 @@ def initialize_model(hyperparams, hyperparams_features):
         model = build_lstm_with_str_input_tran(hyperparams, hyperparams_features)
 
     elif hyperparams["model"] == "lstm_vector_dan":
+        model = build_lstm_with_vector_input_dan(hyperparams, hyperparams_features)
+
+    elif hyperparams["model"] == "lstm_distillbert":
         model = build_lstm_with_vector_input_dan(hyperparams, hyperparams_features)
 
     elif hyperparams["model"] == "lstm_vector_tran":
@@ -139,7 +144,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     logger.info(args)
 
-    model_path = f'../resources/models/{args.model}_{args.embeddings}_{args.version}{"_" + args.note if args.note else ""}'
+    model_path = f'../resources/models/{args.dataset}_{args.model}_{args.embeddings}_{args.version}{"_" + args.note if args.note else ""}'
     if args.only_test:
         # load saved model
         hyperparams, hyperparams_features = load_params(model_path=model_path)
@@ -195,6 +200,9 @@ if __name__ == '__main__':
             hyperparams_features["vocabulary_path"] = os.path.join("../resources/generated", args.vocabulary)
             hyperparams_features["embedding_dim"] = "dynamic"
 
+        elif args.model == "lstm_distillbert":
+            from model.lstm_vector_distillbert import hyperparams, hyperparams_features
+
         else:
             raise Exception(f"Unknown model {args.model}")
 
@@ -237,6 +245,11 @@ if __name__ == '__main__':
                                                                                                          subjects_split,
                                                                                                          hyperparams,
                                                                                                          hyperparams_features)
+    elif hyperparams["embeddings"] == "distillbert-vector":
+        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_distillbert_vector(user_level_data,
+                                                                                                                 subjects_split,
+                                                                                                                 hyperparams,
+                                                                                                                 hyperparams_features)
     elif hyperparams["embeddings"] == "use-stateful":
         data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_stateful(user_level_data,
                                                                                                        subjects_split,

@@ -5,8 +5,9 @@ from loader.DataGeneratorStr import DataGeneratorStr
 from loader.DataGeneratorUniGrams import DataGeneratorUnigrams
 from loader.DataGeneratorUniGramsFeatures import DataGeneratorUnigramsFeatures
 from loader.DataGeneratorBiGrams import DataGeneratorBiGrams
-from loader.DataGeneratorUSEVector import DataGeneratorUSEVector
+from loader.DataGeneratorVector_USE import DataGeneratorUSEVector
 from loader.DataGeneratorStateful import DataGeneratorStateful
+from loader.DataGeneratorVector_DistillBERT import DataGeneratorVectorDistilBERT
 
 
 def initialize_datasets_hierarchical(user_level_data, subjects_split, hyperparams, hyperparams_features):
@@ -68,6 +69,33 @@ def initialize_datasets_use_vector(user_level_data, subjects_split, hyperparams,
                                                  max_posts_per_user=hyperparams['max_posts_per_user'],
                                                  shuffle=False, data_generator_id="test", vectorizer=vectorizer,
                                                  embedding_dimension=hyperparams_features["embedding_dim"])
+    return data_generator_train, data_generator_valid, data_generator_test
+
+
+def initialize_datasets_distillbert_vector(user_level_data, subjects_split, hyperparams, hyperparams_features):
+    from transformers import AutoTokenizer, pipeline, TFDistilBertModel
+    model = TFDistilBertModel.from_pretrained(hyperparams_features["module_url"])
+    tokenizer = AutoTokenizer.from_pretrained(hyperparams_features["module_url"])
+    vectorizer = pipeline('feature-extraction', model=model,
+                          tokenizer=tokenizer)
+
+    data_generator_train = DataGeneratorVectorDistilBERT(user_level_data=user_level_data, subjects_split=subjects_split, set_type='train',
+                                                         seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
+                                                         max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                         shuffle=False, data_generator_id="train", vectorizer=vectorizer,
+                                                         embedding_dimension=hyperparams_features["embedding_dim"])
+
+    data_generator_valid = DataGeneratorVectorDistilBERT(user_level_data=user_level_data, subjects_split=subjects_split, set_type="valid",
+                                                         seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
+                                                         max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                         shuffle=False, data_generator_id="valid", vectorizer=vectorizer,
+                                                         embedding_dimension=hyperparams_features["embedding_dim"])
+
+    data_generator_test = DataGeneratorVectorDistilBERT(user_level_data=user_level_data, subjects_split=subjects_split, set_type="test",
+                                                        seq_len=hyperparams['maxlen'], batch_size=1,
+                                                        max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                        shuffle=False, data_generator_id="test", vectorizer=vectorizer,
+                                                        embedding_dimension=hyperparams_features["embedding_dim"])
     return data_generator_train, data_generator_valid, data_generator_test
 
 

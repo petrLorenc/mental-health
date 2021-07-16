@@ -28,12 +28,12 @@ from model.neural_network import build_neural_network_model
 from model.neural_network_features import build_neural_network_model_features
 from model.lstm_vector_distillbert import build_lstm_with_vector_input_distillbert
 
-from utils_test import test, test_stateful
-from utils_train import train
+from test_utils.utils import test, test_stateful
+from train_utils.utils import train
 
-from load_save_model import save_model_and_params, load_params, load_saved_model_weights
+from utils.load_save_model import load_params, load_saved_model_weights
 from loader.data_loading import load_erisk_data, load_daic_data
-from resource_loading import load_NRC, load_LIWC, load_list_from_file
+from utils.resource_loading import load_NRC, load_LIWC, load_list_from_file
 
 from train_utils.dataset import initialize_datasets_hierarchical
 from train_utils.dataset import initialize_datasets_str
@@ -59,62 +59,6 @@ if gpus:
 # os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
-
-
-def initialize_model(hyperparams, hyperparams_features):
-    logger.info("Initializing models...\n")
-
-    if hyperparams["model"].startswith("hierarchical"):
-        emotions_dim = 0 if 'emotions' in hyperparams['ignore_layer'] else len(load_NRC(hyperparams_features['nrc_lexicon_path']))
-        stopwords_dim = 0 if 'stopwords' in hyperparams['ignore_layer'] else len(load_list_from_file(hyperparams_features['stopwords_path']))
-
-        liwc_categories_dim = 0
-        if 'liwc' not in hyperparams['ignore_layer']:
-            num2emo, whole_words, asterisk_words = load_LIWC(hyperparams_features['liwc_path'])
-            liwc_categories_dim = len(num2emo)
-
-        model = build_hierarchical_model(hyperparams, hyperparams_features,
-                                         emotions_dim, stopwords_dim, liwc_categories_dim,
-                                         ignore_layer=hyperparams['ignore_layer'],
-                                         word_embedding_type=hyperparams["embeddings"])
-    elif hyperparams["model"] == "lstm_str_dan":
-        model = build_lstm_with_str_input_dan(hyperparams, hyperparams_features)
-
-    elif hyperparams["model"] == "lstm_str_tran":
-        model = build_lstm_with_str_input_tran(hyperparams, hyperparams_features)
-
-    elif hyperparams["model"] == "lstm_vector_dan":
-        model = build_lstm_with_vector_input_dan(hyperparams, hyperparams_features)
-
-    elif hyperparams["model"] == "lstm_distillbert":
-        model = build_lstm_with_vector_input_dan(hyperparams, hyperparams_features)
-
-    elif hyperparams["model"] == "lstm_vector_tran":
-        model = build_lstm_with_vector_input_tran(hyperparams, hyperparams_features)
-
-    elif hyperparams["model"] == "log_regression":
-        model = build_bow_log_regression_model(hyperparams, hyperparams_features)
-
-    elif hyperparams["model"] == "lstm_stateful":
-        model = build_lstm_stateful_model(hyperparams, hyperparams_features)
-
-    elif hyperparams["model"] == "neural_network_features":
-        emotions_dim = len(load_NRC(hyperparams_features['nrc_lexicon_path']))
-
-        num2emo, _, _ = load_LIWC(hyperparams_features['liwc_path'])
-        liwc_categories_dim = len(num2emo)
-
-        model = build_neural_network_model_features(hyperparams, hyperparams_features, emotions_dim, liwc_categories_dim)
-
-    elif hyperparams["model"] == "neural_network":
-        model = build_neural_network_model(hyperparams, hyperparams_features)
-
-    else:
-        raise NotImplementedError(f"Type of model {hyperparams['model']} is not supported yet")
-
-    # model.summary()
-    return model
-
 
 if __name__ == '__main__':
     logger.info("Loading command line arguments...\n")
@@ -144,82 +88,17 @@ if __name__ == '__main__':
     args = parser.parse_args()
     logger.info(args)
 
-    model_path = f'../resources/models/{args.dataset}_{args.model}_{args.embeddings}_{args.version}{"_" + args.note if args.note else ""}'
-    if args.only_test:
-        # load saved model
-        hyperparams, hyperparams_features = load_params(model_path=model_path)
-        logger.info(f"Loaded model from {model_path}")
-    else:
-        hyperparams, hyperparams_features = load_params("../resources/default_config")
-        if args.model == "hierarchical":
-            from model.hierarchical_model import hyperparams, hyperparams_features
-
-            hyperparams_features["embedding_dim"] = 300
-            if args.vocabulary is not None:
-                hyperparams_features['vocabulary_path'] = os.path.join("../resources/generated", args.vocabulary)
-
-        elif args.model == "hierarchicalRandom":
-            from model.hierarchical_model import hyperparams, hyperparams_features
-
-            hyperparams_features["embedding_dim"] = 30
-            hyperparams["embeddings"] = "random"
-            if args.vocabulary is not None:
-                hyperparams_features['vocabulary_path'] = os.path.join("../resources/generated", args.vocabulary)
-
-        elif args.model == "lstm_str_dan":
-            from model.lstm_str_dan import hyperparams, hyperparams_features
-
-        elif args.model == "lstm_str_tran":
-            from model.lstm_str_tran import hyperparams, hyperparams_features
-
-        elif args.model == "lstm_vector_dan":
-            from model.lstm_vector_dan import hyperparams, hyperparams_features
-
-        elif args.model == "lstm_vector_tran":
-            from model.lstm_vector_tran import hyperparams, hyperparams_features
-
-        elif args.model == "lstm_stateful":
-            from model.lstm_stateful import hyperparams, hyperparams_features
-
-            hyperparams_features["embedding_dim"] = 512
-
-        elif args.model == "log_regression":
-            from model.logistic_regression import hyperparams, hyperparams_features
-
-            hyperparams_features["vocabulary_path"] = os.path.join("../resources/generated", args.vocabulary)
-            hyperparams_features["embedding_dim"] = "dynamic"
-        elif args.model == "neural_network":
-            from model.neural_network import hyperparams, hyperparams_features
-
-            hyperparams_features["vocabulary_path"] = os.path.join("../resources/generated", args.vocabulary)
-            hyperparams_features["embedding_dim"] = "dynamic"
-
-        elif args.model == "neural_network_features":
-            from model.neural_network_features import hyperparams, hyperparams_features
-
-            hyperparams_features["vocabulary_path"] = os.path.join("../resources/generated", args.vocabulary)
-            hyperparams_features["embedding_dim"] = "dynamic"
-
-        elif args.model == "lstm_distillbert":
-            from model.lstm_vector_distillbert import hyperparams, hyperparams_features
-
-        else:
-            raise Exception(f"Unknown model {args.model}")
-
-    # override from command line
-    hyperparams.update({k: v for k, v in vars(args).items() if v is not None})
-
-    dataset = hyperparams["dataset"]
+    model_path = f'../resources/models/{args.dataset}_{args.model}_{args.version}{"_" + args.note if args.note else ""}'
 
     logger.info("Initializing datasets...\n")
-    if dataset == "erisk":
+    if args.dataset == "eRisk":
         writings_df = pickle.load(open('../data/eRisk/writings_df_depression_liwc', 'rb'))
         if args.smaller_data:
             writings_df = writings_df.sample(frac=0.1)
 
         user_level_data, subjects_split = load_erisk_data(writings_df)
 
-    elif dataset == "daic":
+    elif args.dataset == "daic-woz":
         user_level_data, subjects_split = load_daic_data(path_train="../data/daic-woz/train_data.json",
                                                          path_valid="../data/daic-woz/dev_data.json",
                                                          path_test="../data/daic-woz/test_data.json",
@@ -228,56 +107,160 @@ if __name__ == '__main__':
                                                          limit_size=args.smaller_data,
                                                          tokenizer=RegexpTokenizer(r'\w+'))
     else:
-        raise NotImplementedError(f"Not recognized dataset {dataset}")
+        raise NotImplementedError(f"Not recognized dataset {args.dataset}")
 
-    if hyperparams["embeddings"] == "random" or hyperparams["embeddings"] == "glove":
+    if args.model == "hierarchical" or args.model == "hierarchicalRandom":
+        from model.hierarchical_model import hyperparams, hyperparams_features
+
+        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
+
+        if args.model == "hierarchical":
+            hyperparams_features["embedding_dim"] = 300
+        else:
+            hyperparams_features["embedding_dim"] = 30
+            hyperparams["embeddings"] = "random"
+
+        if args.vocabulary is not None:
+            hyperparams_features['vocabulary_path'] = os.path.join("../resources/generated", args.vocabulary)
+
+        emotions_dim = 0 if 'emotions' in hyperparams['ignore_layer'] else len(load_NRC(hyperparams_features['nrc_lexicon_path']))
+        stopwords_dim = 0 if 'stopwords' in hyperparams['ignore_layer'] else len(load_list_from_file(hyperparams_features['stopwords_path']))
+
+        liwc_categories_dim = 0
+        if 'liwc' not in hyperparams['ignore_layer']:
+            num2emo, whole_words, asterisk_words = load_LIWC(hyperparams_features['liwc_path'])
+            liwc_categories_dim = len(num2emo)
+
         data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_hierarchical(user_level_data,
                                                                                                            subjects_split,
                                                                                                            hyperparams,
                                                                                                            hyperparams_features)
-    elif hyperparams["embeddings"] == "use-str":
+
+        model = build_hierarchical_model(hyperparams, hyperparams_features,
+                                         emotions_dim, stopwords_dim, liwc_categories_dim,
+                                         ignore_layer=hyperparams['ignore_layer'],
+                                         word_embedding_type=hyperparams["embeddings"])
+
+    elif args.model == "lstm_str_dan" or args.model == "lstm_str_tran":
+        if args.model == "lstm_str_dan":
+            from model.lstm_str_dan import hyperparams, hyperparams_features
+        else:
+            from model.lstm_str_tran import hyperparams, hyperparams_features
+
+        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
+
         data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_str(user_level_data,
                                                                                                   subjects_split,
                                                                                                   hyperparams,
                                                                                                   hyperparams_features)
-    elif hyperparams["embeddings"] == "use-vector":
+        if args.model == "lstm_str_dan":
+            model = build_lstm_with_str_input_dan(hyperparams, hyperparams_features)
+        else:
+            model = build_lstm_with_str_input_tran(hyperparams, hyperparams_features)
+
+    elif args.model == "lstm_vector_dan" or args.model == "lstm_vector_tran":
+        if args.model == "lstm_vector_dan":
+            from model.lstm_vector_dan import hyperparams, hyperparams_features
+        else:
+            from model.lstm_vector_tran import hyperparams, hyperparams_features
+
+        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
+
         data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_use_vector(user_level_data,
                                                                                                          subjects_split,
                                                                                                          hyperparams,
                                                                                                          hyperparams_features)
-    elif hyperparams["embeddings"] == "distillbert-vector":
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_distillbert_vector(user_level_data,
-                                                                                                                 subjects_split,
-                                                                                                                 hyperparams,
-                                                                                                                 hyperparams_features)
-    elif hyperparams["embeddings"] == "use-stateful":
+        if args.model == "lstm_vector_dan":
+            model = build_lstm_with_vector_input_dan(hyperparams, hyperparams_features)
+        else:
+            model = build_lstm_with_vector_input_tran(hyperparams, hyperparams_features)
+
+    elif args.model == "lstm_stateful":
+        from model.lstm_stateful import hyperparams, hyperparams_features
+
+        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
+
         data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_stateful(user_level_data,
                                                                                                        subjects_split,
                                                                                                        hyperparams,
                                                                                                        hyperparams_features)
-    elif hyperparams["embeddings"] == "unigrams":
+
+        model = build_lstm_stateful_model(hyperparams, hyperparams_features)
+
+    elif args.model == "log_regression_unigrams" or args.model == "neural_network_unigrams":
+        if args.model == "log_regression_unigrams":
+            from model.logistic_regression import hyperparams, hyperparams_features
+        else:
+            from model.neural_network import hyperparams, hyperparams_features
+
+        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
+
+        hyperparams_features["vocabulary_path"] = os.path.join("../resources/generated", args.vocabulary)
         data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_unigrams(user_level_data,
                                                                                                        subjects_split,
                                                                                                        hyperparams,
                                                                                                        hyperparams_features)
-        if hyperparams_features["embedding_dim"] == "dynamic":
-            hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
-    elif hyperparams["embeddings"] == "unigrams-features":
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_unigrams_features(user_level_data,
-                                                                                                                subjects_split,
-                                                                                                                hyperparams,
-                                                                                                                hyperparams_features)
-        if hyperparams_features["embedding_dim"] == "dynamic":
-            hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
-    elif hyperparams["embeddings"] == "bigrams":
+        hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
+
+        if args.model == "log_regression_unigrams":
+            model = build_bow_log_regression_model(hyperparams, hyperparams_features)
+        else:
+            model = build_neural_network_model(hyperparams, hyperparams_features)
+
+    elif args.model == "log_regression_bigrams" or args.model == "neural_network_bigrams":
+        if args.model == "log_regression_bigrams":
+            from model.neural_network import hyperparams, hyperparams_features
+        else:
+            from model.logistic_regression import hyperparams, hyperparams_features
+        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
+
+        hyperparams_features["vocabulary_path"] = os.path.join("../resources/generated", args.vocabulary)
         data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_bigrams(user_level_data,
                                                                                                       subjects_split,
                                                                                                       hyperparams,
                                                                                                       hyperparams_features)
-        if hyperparams_features["embedding_dim"] == "dynamic":
-            hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
+        hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
+
+        if args.model == "log_regression_bigrams":
+            model = build_bow_log_regression_model(hyperparams, hyperparams_features)
+        else:
+            model = build_neural_network_model(hyperparams, hyperparams_features)
+
+    elif args.model == "neural_network_unigrams_features":
+        from model.neural_network import hyperparams, hyperparams_features
+
+        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
+
+        hyperparams_features["vocabulary_path"] = os.path.join("../resources/generated", args.vocabulary)
+        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_unigrams_features(user_level_data,
+                                                                                                                subjects_split,
+                                                                                                                hyperparams,
+                                                                                                                hyperparams_features)
+        emotions_dim = len(load_NRC(hyperparams_features['nrc_lexicon_path']))
+
+        num2emo, _, _ = load_LIWC(hyperparams_features['liwc_path'])
+        liwc_categories_dim = len(num2emo)
+
+        model = build_neural_network_model_features(hyperparams, hyperparams_features, emotions_dim, liwc_categories_dim)
+
+    elif args.model == "lstm_distillbert":
+        from model.lstm_vector_distillbert import hyperparams, hyperparams_features
+
+        hyperparams_features["precomputed_vectors_path"] = f"../data/{args.dataset}/precomputed_features/"
+
+        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
+
+        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_distillbert_vector(user_level_data,
+                                                                                                                 subjects_split,
+                                                                                                                 hyperparams,
+                                                                                                                 hyperparams_features)
+        model = build_lstm_with_vector_input_distillbert(hyperparams, hyperparams_features)
     else:
-        raise NotImplementedError(f"Embeddings {hyperparams['embeddings']} not implemented yet")
+        raise Exception(f"Unknown model {args.model}")
+
+    if not args.only_test:
+        # override from command line
+        hyperparams.update({k: v for k, v in vars(args).items() if v is not None})
 
     experiment = initialize_experiment(hyperparams=hyperparams, hyperparams_features=hyperparams_features)
 
@@ -287,9 +270,10 @@ if __name__ == '__main__':
                                hyperparams=hyperparams,
                                hyperparams_features=hyperparams_features,
                                experiment=experiment,
-                               initialize_model=initialize_model)
+                               model=model, model_path=model_path)
     else:
-        model = load_saved_model_weights(model_path=model_path, hyperparams=hyperparams, hyperparams_features=hyperparams_features, h5=True)
+        model = load_saved_model_weights(loaded_model_structure=model, model_path=model_path, hyperparams=hyperparams,
+                                         hyperparams_features=hyperparams_features, h5=True)
 
     if hyperparams["model"] == "log_regression":
         from model.logistic_regression import log_important_features

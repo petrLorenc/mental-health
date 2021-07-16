@@ -1,9 +1,5 @@
-import random
-
-from load_save_model import load_params, load_saved_model_weights
-from resource_loading import load_list_from_file
+from utils.load_save_model import load_params, load_saved_model_weights
 import json
-from src.loader.EriskDataGenerator_old import EriskDataGeneratorHierarchical
 from src.loader.DAICDataGeneratorFeatures import DAICDataGenerator
 import numpy as np
 

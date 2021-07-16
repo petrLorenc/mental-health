@@ -1,12 +1,10 @@
-import numpy as np
-
 import tensorflow as tf
 import tensorflow_hub as hub
 import tensorflow.keras.backend as K
 from tensorflow.keras.metrics import AUC
-from tensorflow.keras.layers import LSTM, Concatenate, Lambda
+from tensorflow.keras.layers import LSTM, Concatenate
 
-from metrics import Metrics
+from train_utils.metrics import Metrics
 
 hyperparams = {
     "trainable_embeddings": True,

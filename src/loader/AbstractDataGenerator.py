@@ -2,11 +2,9 @@ from utils.logger import logger
 
 from abc import abstractmethod
 
-import pickle
 import numpy as np
 from nltk.tokenize import RegexpTokenizer
 from tensorflow.keras.utils import Sequence
-from resource_loading import load_NRC, load_dict_from_file, load_list_from_file
 
 
 class AbstractDataGenerator(Sequence):

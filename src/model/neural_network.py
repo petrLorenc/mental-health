@@ -1,10 +1,8 @@
-import numpy as np
-
 import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras.metrics import AUC
 
-from metrics import Metrics
+from train_utils.metrics import Metrics
 
 hyperparams = {
     "positive_class_weight": 2,

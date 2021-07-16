@@ -2,9 +2,9 @@ from utils.logger import logger
 
 import numpy as np
 from tensorflow.keras import callbacks
-from callbacks import WeightsHistory, LRHistory
+from train_utils.callbacks import WeightsHistory, LRHistory
 
-from load_save_model import save_model_and_params
+from utils.load_save_model import save_model_and_params
 
 
 def train_model(model, hyperparams, hyperparams_features,
@@ -58,19 +58,10 @@ def train_model(model, hyperparams, hyperparams_features,
 
 def train(data_generator_train, data_generator_valid,
           hyperparams, hyperparams_features,
-          experiment, initialize_model,
-          start_epoch=0,
-          model=None):
-    model_path = f'../resources/models/{hyperparams["model"]}_{hyperparams["embeddings"]}_{hyperparams["version"]}_{hyperparams["note"]}'
-
-    if not model:
-        model = initialize_model(hyperparams, hyperparams_features)
-    model.summary()
-
-    print(model_path)
+          experiment, model, model_path):
     model, history = train_model(model=model, hyperparams=hyperparams, hyperparams_features=hyperparams_features,
                                  data_generator_train=data_generator_train, data_generator_valid=data_generator_valid,
-                                 epochs=hyperparams["epochs"], start_epoch=start_epoch,
+                                 epochs=hyperparams["epochs"], start_epoch=0,
                                  class_weight={0: 1, 1: hyperparams['positive_class_weight']},
                                  callback_list=frozenset([
                                      'weights_history',

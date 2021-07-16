@@ -1,6 +1,4 @@
-import os
-
-from metrics import Metrics
+from train_utils.metrics import Metrics
 import json
 from tensorflow.keras.models import load_model
 from tensorflow.keras import optimizers
@@ -35,21 +33,17 @@ def load_saved_model(model_path, hyperparams):
     return loaded_model
 
 
-def load_saved_model_weights(model_path, hyperparams, hyperparams_features, h5=False):
-    from main import initialize_model  # to avoid cycle of dependencies
-
+def load_saved_model_weights(loaded_model_structure, model_path, hyperparams, hyperparams_features, h5=False):
     metrics_class = Metrics(threshold=hyperparams['threshold'])
     dependencies = {
         'f1_m': metrics_class.f1_m,
         'precision_m': metrics_class.precision_m,
         'recall_m': metrics_class.recall_m,
     }
-    loaded_model = initialize_model(hyperparams, hyperparams_features)
-    # loaded_model.summary()
     path = model_path + "_weights"
     by_name = False
     if h5:
         path += ".h5"
         by_name = True
-    loaded_model.load_weights(path, by_name=by_name)
-    return loaded_model
+    loaded_model_structure.load_weights(path, by_name=by_name)
+    return loaded_model_structure

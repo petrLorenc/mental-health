@@ -1,8 +1,6 @@
-from utils.logger import logger
-
 from sklearn.feature_extraction.text import CountVectorizer
 from loader.AbstractDataGenerator import AbstractDataGenerator
-from resource_loading import load_list_from_file
+from utils.resource_loading import load_list_from_file
 
 
 class DataGeneratorBiGrams(AbstractDataGenerator):

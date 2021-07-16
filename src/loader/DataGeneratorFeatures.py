@@ -1,10 +1,7 @@
-from utils.logger import logger
-
-import pickle
 import numpy as np
 
 from tensorflow.keras.preprocessing import sequence
-from resource_loading import load_NRC, load_dict_from_file, load_list_from_file, load_LIWC
+from utils.resource_loading import load_NRC, load_dict_from_file, load_list_from_file, load_LIWC
 from utils.feature_encoders import encode_emotions, encode_pronouns, encode_stopwords, encode_liwc_categories, LIWC_vectorizer
 from loader.AbstractDataGenerator import AbstractDataGenerator
 

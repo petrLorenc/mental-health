@@ -5,22 +5,13 @@ import tensorflow.keras.backend as K
 from tensorflow.keras.metrics import AUC
 
 from train_utils.metrics import Metrics
+from utils.default_config import DefaultHyperparameters
 
-hyperparams = {
-    "positive_class_weight": 2,
-    "max_posts_per_user": 15,
-    "batch_size": 64,
-    "epochs": 50,
+hyperparams = DefaultHyperparameters({
     "embeddings": "unigrams",
+    "dense_units": 128
+})
 
-    "reduce_lr_factor": 0.5,
-    "reduce_lr_patience": 55,
-    "scheduled_reduce_lr_freq": 95,
-    "scheduled_reduce_lr_factor": 0.5,
-    "threshold": 0.5,
-
-    "optimizer": "adam",
-}
 hyperparams_features = {
     "nrc_lexicon_path": "../resources/NRC-Emotion-Lexicon-Wordlevel-v0.92.txt",
     "liwc_path": "../resources/liwc.dic",

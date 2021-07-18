@@ -39,7 +39,7 @@ if __name__ == '__main__':
 
     code_name = "use4"
     feature_extraction = "../resources/embeddings/use-4"
-    aggregation_choice = "average"
+    aggregation_choice = "minimum"
 
     aggregation_fn = get_aggregation_fn(aggregation_choice)
 

@@ -260,7 +260,7 @@ if __name__ == '__main__':
         if args.model.endswith("lstm"):
             model = build_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features)
     elif args.model.startswith("precomputed_embeddings_aggregated"):
-        from model.lstm_vector_distillbert import hyperparams
+        from utils.default_config import hyperparams
 
         hyperparams_features = {"embeddings_name": args.embeddings, "embedding_dim": args.embeddings_dim,
                                 "precomputed_vectors_path": f"../data/{args.dataset}/precomputed_features/"}
@@ -272,8 +272,10 @@ if __name__ == '__main__':
                                                                                                                             hyperparams,
                                                                                                                             hyperparams_features)
         if args.model.endswith("logistic_regression"):
+            from model.logistic_regression import hyperparams
             model = build_logistic_regression_model(hyperparams, hyperparams_features)
         elif args.model.endswith("neural_network"):
+            from model.neural_network import hyperparams
             model = build_neural_network_model(hyperparams, hyperparams_features)
         else:
             raise Exception("Unknown model {args.model}")

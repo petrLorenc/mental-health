@@ -9,38 +9,19 @@ from utils.resource_loading import load_embeddings, load_dict_from_file
 
 import numpy as np
 
-hyperparams = {
+from utils.default_config import DefaultHyperparametersSequence
+
+hyperparams = DefaultHyperparametersSequence({
     "trainable_embeddings": True,
     "dense_bow_units": 20,
     "dense_numerical_units": 20,
     "dense_user_units": 0,
-    "dropout": 0.1,
-    "l2_dense": 0.00011,
-    "l2_embeddings": 1e-07,
-    "norm_momentum": 0.1,
+
     "ignore_layer": [],
+    "embeddings": "glove"
 
-    "epochs": 50,
-    "embeddings": "glove",
-    "positive_class_weight": 2,
-    "maxlen": 50,
-    "lstm_units": 64,
-    "lstm_units_user": 64,
-    "max_posts_per_user": 15,
-    "batch_size": 64,
+})
 
-    "reduce_lr_factor": 0.5,
-    "reduce_lr_patience": 55,
-    "scheduled_reduce_lr_freq": 95,
-    "scheduled_reduce_lr_factor": 0.5,
-    "threshold": 0.5,
-
-    "optimizer": "adam",
-    "decay": 0.001,
-    "lr": 5e-05,
-
-    "padding": "pre"
-}
 hyperparams_features = {
     "vocabulary_path": "../resources/generated/vocab_20000_erisk.txt",
     "nrc_lexicon_path": "../resources/NRC-Emotion-Lexicon-Wordlevel-v0.92.txt",

@@ -17,13 +17,32 @@ if gpus:
     tf.config.experimental.set_visible_devices(devices=gpus[1], device_type='GPU')
     tf.config.experimental.set_memory_growth(device=gpus[1], enable=True)
 
+def get_aggregation_fn(choice="vstack"):
+    if choice == "vstack":
+        return np.vstack
+    elif choice == "average":
+        return lambda x: np.average(np.vstack(x), axis=0)
+    elif choice == "maximum":
+        return lambda x: np.max(np.vstack(x), axis=0)
+    elif choice == "minimum":
+        return lambda x: np.min(np.vstack(x), axis=0)
+    else:
+        raise Exception(f"Unknown aggregation fn choice: {choice}")
+
+
 if __name__ == '__main__':
-    rewrite = False
+    rewrite = True
     processing_batch = 25
-    # dataset = "daic-woz"
-    dataset = "eRisk"
-    feature_extraction = "vinai/bertweet-base"
-    embedding_dim = 768
+    dataset = "daic-woz"
+    # dataset = "eRisk"
+
+    code_name = "use4"
+    feature_extraction = "../resources/embeddings/use-4"
+    aggregation_choice = "maximum"
+
+    aggregation_fn = get_aggregation_fn(aggregation_choice)
+
+    embedding_dim = 512
     dir_to_save = f"../data/{dataset}/precomputed_features/"
 
     print(f"Checking directory to save features {dir_to_save}")
@@ -53,7 +72,7 @@ if __name__ == '__main__':
         raise Exception(f"Unknown dataset: {dataset}")
 
     for k in user_level_data.keys():
-        if os.path.isfile(os.path.join(dir_to_save, k + f".feat.{feature_extraction}.plk")) and rewrite is False:
+        if os.path.isfile(os.path.join(dir_to_save, k + f".feat.{code_name}.{aggregation_choice}.{embedding_dim}.plk")) and rewrite is False:
             print(f"Skipping user {k}")
             continue
         raw_texts = user_level_data[k]["raw"]
@@ -66,9 +85,9 @@ if __name__ == '__main__':
                     preprocessed_vectors.append(vectorizer(
                         tokenizer(raw_texts[idx * processing_batch: (idx + 1) * processing_batch], return_tensors="tf", padding=True,
                                   truncation=True)).last_hidden_state.numpy()[:, 0])
-            preprocessed_vectors = np.array([x for y in preprocessed_vectors for x in y], dtype=np.float32).reshape(-1, embedding_dim)
-        except:
-            print(f"{k} has errors with {len(raw_texts)}")
-        with open(os.path.join(dir_to_save, k + f".feat.{feature_extraction}.plk"), "wb") as f:
+            preprocessed_vectors = aggregation_fn(preprocessed_vectors)
+        except Exception as e:
+            print(f"{k} has errors with {len(raw_texts)} - {e}")
+        with open(os.path.join(dir_to_save, k + f".feat.{code_name}.{aggregation_choice}.{embedding_dim}.plk"), "wb") as f:
             plk.dump(preprocessed_vectors, f)
         print(f"{k} preprocessed")

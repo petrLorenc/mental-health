@@ -4,34 +4,13 @@ from tensorflow.keras.metrics import AUC
 from tensorflow.keras.layers import GRU
 
 from train_utils.metrics import Metrics
+from utils.default_config import DefaultHyperparametersSequence
 
-hyperparams = {
+hyperparams = DefaultHyperparametersSequence({
     "trainable_embeddings": False,
-    "dropout": 0.1,
-    "l2_dense": 0.00011,
-    "l2_embeddings": 1e-07,
-    "norm_momentum": 0.1,
-    "ignore_layer": [],
+    "embeddings": "use-str"
+})
 
-    "epochs": 10,
-    "embeddings": "use-stateful",
-    "positive_class_weight": 2,
-    "lstm_units_user": 100,
-    "max_posts_per_user": 15,
-    "batch_size": 1,
-
-    "reduce_lr_factor": 0.5,
-    "reduce_lr_patience": 55,
-    "scheduled_reduce_lr_freq": 95,
-    "scheduled_reduce_lr_factor": 0.5,
-    "threshold": 0.5,
-
-    "optimizer": "adam",
-    "decay": 0.001,
-    "lr": 5e-05,
-
-    "padding": "pre"
-}
 hyperparams_features = {
     "module_url": "../resources/embeddings/use-4"
 }

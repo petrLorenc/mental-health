@@ -4,35 +4,12 @@ from tensorflow.keras.metrics import AUC
 from tensorflow.keras.layers import LSTM
 
 from train_utils.metrics import Metrics
+from utils.default_config import DefaultHyperparametersSequence
 
-hyperparams = {
+hyperparams = DefaultHyperparametersSequence({
     "trainable_embeddings": False,
-    "dropout": 0.1,
-    "l2_dense": 0.00011,
-    "l2_embeddings": 1e-07,
-    "norm_momentum": 0.1,
-    "ignore_layer": [],
-
-    "epochs": 50,
-    "embeddings": "distillbert-vector",
-    "positive_class_weight": 2,
-    "maxlen": 50,
-    "lstm_units_user": 100,
-    "max_posts_per_user": 15,
-    "batch_size": 16,
-
-    "reduce_lr_factor": 0.5,
-    "reduce_lr_patience": 55,
-    "scheduled_reduce_lr_freq": 95,
-    "scheduled_reduce_lr_factor": 0.5,
-    "threshold": 0.5,
-
-    "optimizer": "adam",
-    "decay": 0.001,
-    "lr": 5e-05,
-
-    "padding": "pre"
-}
+    "embeddings": "distillbert-vector"
+})
 
 
 def build_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features):

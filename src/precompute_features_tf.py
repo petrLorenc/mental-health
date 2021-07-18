@@ -7,7 +7,7 @@ import pickle as plk
 from nltk.tokenize import RegexpTokenizer
 
 import tensorflow as tf
-from transformers import DistilBertTokenizer, TFDistilBertModel
+from transformers import TFAutoModel, AutoTokenizer
 
 from loader.data_loading import load_erisk_data, load_daic_data
 
@@ -18,9 +18,11 @@ if gpus:
     tf.config.experimental.set_memory_growth(device=gpus[1], enable=True)
 
 if __name__ == '__main__':
+    rewrite = False
     processing_batch = 25
+    # dataset = "daic-woz"
     dataset = "eRisk"
-    feature_extraction = "distilbert-base-uncased"
+    feature_extraction = "vinai/bertweet-base"
     embedding_dim = 768
     dir_to_save = f"../data/{dataset}/precomputed_features/"
 
@@ -29,8 +31,10 @@ if __name__ == '__main__':
         os.mkdir(dir_to_save)
 
     print("Loading feature extractor...")
-    tokenizer = DistilBertTokenizer.from_pretrained(feature_extraction)
-    vectorizer = TFDistilBertModel.from_pretrained(feature_extraction)
+    tokenizer = AutoTokenizer.from_pretrained(feature_extraction)
+    vectorizer = TFAutoModel.from_pretrained(feature_extraction)
+
+    feature_extraction = feature_extraction.replace('/', '-')
 
     print("Loading datasets...")
     if dataset == "eRisk":
@@ -49,20 +53,22 @@ if __name__ == '__main__':
         raise Exception(f"Unknown dataset: {dataset}")
 
     for k in user_level_data.keys():
+        if os.path.isfile(os.path.join(dir_to_save, k + f".feat.{feature_extraction}.plk")) and rewrite is False:
+            print(f"Skipping user {k}")
+            continue
         raw_texts = user_level_data[k]["raw"]
 
-        num_batches = len(raw_texts)//processing_batch
+        num_batches = len(raw_texts) // processing_batch
         preprocessed_vectors = []
         try:
             for idx in range(num_batches + 1):
                 if len(raw_texts[idx * processing_batch: (idx + 1) * processing_batch]) > 0:
-                    preprocessed_vectors.append(vectorizer(tokenizer(raw_texts[idx * processing_batch: (idx + 1) * processing_batch], return_tensors="tf", padding=True, truncation=True)).last_hidden_state.numpy()[:, 0])
+                    preprocessed_vectors.append(vectorizer(
+                        tokenizer(raw_texts[idx * processing_batch: (idx + 1) * processing_batch], return_tensors="tf", padding=True,
+                                  truncation=True)).last_hidden_state.numpy()[:, 0])
             preprocessed_vectors = np.array([x for y in preprocessed_vectors for x in y], dtype=np.float32).reshape(-1, embedding_dim)
         except:
             print(f"{k} has errors with {len(raw_texts)}")
         with open(os.path.join(dir_to_save, k + f".feat.{feature_extraction}.plk"), "wb") as f:
             plk.dump(preprocessed_vectors, f)
         print(f"{k} preprocessed")
-
-
-

@@ -20,13 +20,13 @@ from nltk.tokenize import RegexpTokenizer
 from model.hierarchical_model import build_hierarchical_model
 from model.lstm_str_dan import build_lstm_with_str_input_dan
 from model.lstm_str_tran import build_lstm_with_str_input_tran
-from model.logistic_regression import build_bow_log_regression_model
+from model.logistic_regression import build_logistic_regression_model
 from model.lstm_vector_dan import build_lstm_with_vector_input_dan
 from model.lstm_vector_tran import build_lstm_with_vector_input_tran
 from model.lstm_stateful import build_lstm_stateful_model
 from model.neural_network import build_neural_network_model
 from model.neural_network_features import build_neural_network_model_features
-from model.lstm_vector_distillbert import build_lstm_with_vector_input_distillbert
+from model.lstm_vector_distillbert import build_lstm_with_vector_input_precomputed
 
 from test_utils.utils import test, test_stateful
 from train_utils.utils import train
@@ -40,9 +40,10 @@ from train_utils.dataset import initialize_datasets_str
 from train_utils.dataset import initialize_datasets_unigrams_features
 from train_utils.dataset import initialize_datasets_unigrams
 from train_utils.dataset import initialize_datasets_bigrams
-from train_utils.dataset import initialize_datasets_use_vector
+from train_utils.dataset import initialize_datasets_tensorflowhub_vector
 from train_utils.dataset import initialize_datasets_stateful
-from train_utils.dataset import initialize_datasets_distillbert_vector
+from train_utils.dataset import initialize_datasets_precomputed_vector_sequence
+from train_utils.dataset import initialize_datasets_precomputed_vector_aggregated
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
@@ -79,6 +80,7 @@ if __name__ == '__main__':
     parser.add_argument('--version', metavar="-v", type=int, default=0, help='version of model')
     parser.add_argument('--dataset', metavar="-d", type=str, help='(supported "daic" or "erisk")')
     parser.add_argument('--embeddings', type=str, help='(supported "random", "glove" or "use")')
+    parser.add_argument('--embeddings_dim', type=int, default=768, help='(supported "random", "glove" or "use")')
     parser.add_argument('--epochs', metavar="-e", type=int, help='number of epochs')
     parser.add_argument('--model', metavar="-t", type=str, help="(supported 'hierarchical', 'lstm' or 'bow')")
     parser.add_argument('--only_test', type=str2bool, help="Only test - loading trained model from disk")
@@ -166,10 +168,10 @@ if __name__ == '__main__':
 
         if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
 
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_use_vector(user_level_data,
-                                                                                                         subjects_split,
-                                                                                                         hyperparams,
-                                                                                                         hyperparams_features)
+        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_tensorflowhub_vector(user_level_data,
+                                                                                                                   subjects_split,
+                                                                                                                   hyperparams,
+                                                                                                                   hyperparams_features)
         if args.model == "lstm_vector_dan":
             model = build_lstm_with_vector_input_dan(hyperparams, hyperparams_features)
         else:
@@ -203,7 +205,7 @@ if __name__ == '__main__':
         hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
 
         if args.model == "log_regression_unigrams":
-            model = build_bow_log_regression_model(hyperparams, hyperparams_features)
+            model = build_logistic_regression_model(hyperparams, hyperparams_features)
         else:
             model = build_neural_network_model(hyperparams, hyperparams_features)
 
@@ -222,7 +224,7 @@ if __name__ == '__main__':
         hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
 
         if args.model == "log_regression_bigrams":
-            model = build_bow_log_regression_model(hyperparams, hyperparams_features)
+            model = build_logistic_regression_model(hyperparams, hyperparams_features)
         else:
             model = build_neural_network_model(hyperparams, hyperparams_features)
 
@@ -243,18 +245,38 @@ if __name__ == '__main__':
 
         model = build_neural_network_model_features(hyperparams, hyperparams_features, emotions_dim, liwc_categories_dim)
 
-    elif args.model == "lstm_distillbert":
-        from model.lstm_vector_distillbert import hyperparams, hyperparams_features
+    elif args.model.startswith("precomputed_embeddings_sequence"):
+        from model.lstm_vector_distillbert import hyperparams
 
-        hyperparams_features["precomputed_vectors_path"] = f"../data/{args.dataset}/precomputed_features/"
+        hyperparams_features = {"embeddings_name": args.embeddings, "embedding_dim": args.embeddings_dim,
+                                "precomputed_vectors_path": f"../data/{args.dataset}/precomputed_features/"}
 
         if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
 
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_distillbert_vector(user_level_data,
-                                                                                                                 subjects_split,
-                                                                                                                 hyperparams,
-                                                                                                                 hyperparams_features)
-        model = build_lstm_with_vector_input_distillbert(hyperparams, hyperparams_features)
+        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_precomputed_vector_sequence(user_level_data,
+                                                                                                                          subjects_split,
+                                                                                                                          hyperparams,
+                                                                                                                          hyperparams_features)
+        if args.model.endswith("lstm"):
+            model = build_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features)
+    elif args.model.startswith("precomputed_embeddings_aggregated"):
+        from model.lstm_vector_distillbert import hyperparams
+
+        hyperparams_features = {"embeddings_name": args.embeddings, "embedding_dim": args.embeddings_dim,
+                                "precomputed_vectors_path": f"../data/{args.dataset}/precomputed_features/"}
+
+        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
+
+        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_precomputed_vector_aggregated(user_level_data,
+                                                                                                                            subjects_split,
+                                                                                                                            hyperparams,
+                                                                                                                            hyperparams_features)
+        if args.model.endswith("logistic_regression"):
+            model = build_logistic_regression_model(hyperparams, hyperparams_features)
+        elif args.model.endswith("neural_network"):
+            model = build_neural_network_model(hyperparams, hyperparams_features)
+        else:
+            raise Exception("Unknown model {args.model}")
     else:
         raise Exception(f"Unknown model {args.model}")
 

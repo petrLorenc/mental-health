@@ -7,9 +7,10 @@ from loader.DataGeneratorStr import DataGeneratorStr
 from loader.DataGeneratorUniGrams import DataGeneratorUnigrams
 from loader.DataGeneratorUniGramsFeatures import DataGeneratorUnigramsFeatures
 from loader.DataGeneratorBiGrams import DataGeneratorBiGrams
-from loader.DataGeneratorVector_USE import DataGeneratorUSEVector
+from loader.DataGeneratorTensorFlowHubVector import DataGeneratorTensorFlowHubVector
 from loader.DataGeneratorStateful import DataGeneratorStateful
-from loader.DataGeneratorVector_DistillBERT import DataGeneratorVectorDistilBERT
+from loader.DataGeneratorPrecomputedVectorSequence import DataGeneratorPrecomputedVectorSequence
+from loader.DataGeneratorPrecomputedVectorAggregated import DataGeneratorPrecomputedVectorAggregated
 
 
 def initialize_datasets_hierarchical(user_level_data, subjects_split, hyperparams, hyperparams_features):
@@ -51,79 +52,83 @@ def initialize_datasets_str(user_level_data, subjects_split, hyperparams, hyperp
     return data_generator_train, data_generator_valid, data_generator_test
 
 
-def initialize_datasets_use_vector(user_level_data, subjects_split, hyperparams, hyperparams_features):
+def initialize_datasets_tensorflowhub_vector(user_level_data, subjects_split, hyperparams, hyperparams_features):
     import tensorflow_hub as hub
     vectorizer = hub.load(hyperparams_features["module_url"])
-    data_generator_train = DataGeneratorUSEVector(user_level_data=user_level_data, subjects_split=subjects_split, set_type='train',
-                                                  seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
-                                                  max_posts_per_user=hyperparams['max_posts_per_user'],
-                                                  shuffle=False, data_generator_id="train", vectorizer=vectorizer,
-                                                  embedding_dimension=hyperparams_features["embedding_dim"])
+    data_generator_train = DataGeneratorTensorFlowHubVector(user_level_data=user_level_data, subjects_split=subjects_split, set_type='train',
+                                                            seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
+                                                            max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                            shuffle=False, data_generator_id="train", vectorizer=vectorizer,
+                                                            embedding_dimension=hyperparams_features["embedding_dim"])
 
-    data_generator_valid = DataGeneratorUSEVector(user_level_data=user_level_data, subjects_split=subjects_split, set_type="valid",
-                                                  seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
-                                                  max_posts_per_user=hyperparams['max_posts_per_user'],
-                                                  shuffle=False, data_generator_id="valid", vectorizer=vectorizer,
-                                                  embedding_dimension=hyperparams_features["embedding_dim"])
+    data_generator_valid = DataGeneratorTensorFlowHubVector(user_level_data=user_level_data, subjects_split=subjects_split, set_type="valid",
+                                                            seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
+                                                            max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                            shuffle=False, data_generator_id="valid", vectorizer=vectorizer,
+                                                            embedding_dimension=hyperparams_features["embedding_dim"])
 
-    data_generator_test = DataGeneratorUSEVector(user_level_data=user_level_data, subjects_split=subjects_split, set_type="test",
-                                                 seq_len=hyperparams['maxlen'], batch_size=1,
-                                                 max_posts_per_user=hyperparams['max_posts_per_user'],
-                                                 shuffle=False, data_generator_id="test", vectorizer=vectorizer,
-                                                 embedding_dimension=hyperparams_features["embedding_dim"])
+    data_generator_test = DataGeneratorTensorFlowHubVector(user_level_data=user_level_data, subjects_split=subjects_split, set_type="test",
+                                                           seq_len=hyperparams['maxlen'], batch_size=1,
+                                                           max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                           shuffle=False, data_generator_id="test", vectorizer=vectorizer,
+                                                           embedding_dimension=hyperparams_features["embedding_dim"])
     return data_generator_train, data_generator_valid, data_generator_test
 
 
 import numpy as np
 
 
-def initialize_datasets_distillbert_vector(user_level_data, subjects_split, hyperparams, hyperparams_features):
-    # from transformers import AutoTokenizer, pipeline, TFDistilBertModel
-    # from transformers import TFBertModel, TFMobileBertModel
+def initialize_datasets_precomputed_vector_aggregated(user_level_data, subjects_split, hyperparams, hyperparams_features):
+    data_generator_train = DataGeneratorPrecomputedVectorAggregated(user_level_data=user_level_data, subjects_split=subjects_split, set_type='train',
+                                                                    seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
+                                                                    max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                                    shuffle=False, data_generator_id="train",
+                                                                    embedding_dimension=hyperparams_features["embedding_dim"],
+                                                                    precomputed_vectors_path=hyperparams_features["precomputed_vectors_path"],
+                                                                    feature_extraction_name=hyperparams_features["embeddings_name"])
 
-    # from transformers import DistilBertTokenizer, TFDistilBertModel
-    #
-    # tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
-    # model = TFDistilBertModel.from_pretrained("distilbert-base-uncased")
+    data_generator_valid = DataGeneratorPrecomputedVectorAggregated(user_level_data=user_level_data, subjects_split=subjects_split, set_type="valid",
+                                                                    seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
+                                                                    max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                                    shuffle=False, data_generator_id="valid",
+                                                                    embedding_dimension=hyperparams_features["embedding_dim"],
+                                                                    precomputed_vectors_path=hyperparams_features["precomputed_vectors_path"],
+                                                                    feature_extraction_name=hyperparams_features["embeddings_name"])
 
-    # for k in user_level_data.keys():
-    #     raw_texts = user_level_data[k]["raw"]
-    #     user_level_data[k]["preprocessed_vectors"] = model(tokenizer(raw_texts, return_tensors="tf", padding=True)).last_hidden_state.numpy()[:, -1]
-    #     logger.debug(f"{k} preprocessed")
-    # vectorizer = None
+    data_generator_test = DataGeneratorPrecomputedVectorAggregated(user_level_data=user_level_data, subjects_split=subjects_split, set_type="test",
+                                                                   seq_len=hyperparams['maxlen'], batch_size=1,
+                                                                   max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                                   shuffle=False, data_generator_id="test",
+                                                                   embedding_dimension=hyperparams_features["embedding_dim"],
+                                                                   precomputed_vectors_path=hyperparams_features["precomputed_vectors_path"],
+                                                                   feature_extraction_name=hyperparams_features["embeddings_name"])
+    return data_generator_train, data_generator_valid, data_generator_test
 
-    # for k in user_level_data.keys():
-    #     raw_texts = user_level_data[k]["raw"]
-    #     preprocessed_vectors = vectorizer(raw_texts, pad_to_max_length=True)
-    #     preprocessed_vectors = np.array(preprocessed_vectors)
-    #     cls_tokens = preprocessed_vectors[:, 0]
-    #     user_level_data[k]["preprocessed_vectors"] = cls_tokens
-    #     logger.debug(f"{k} preprocessed")
-    # vectorizer = None
 
-    data_generator_train = DataGeneratorVectorDistilBERT(user_level_data=user_level_data, subjects_split=subjects_split, set_type='train',
-                                                         seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
-                                                         max_posts_per_user=hyperparams['max_posts_per_user'],
-                                                         shuffle=False, data_generator_id="train",
-                                                         embedding_dimension=hyperparams_features["embedding_dim"],
-                                                         precomputed_vectors_path=hyperparams_features["precomputed_vectors_path"],
-                                                         feature_extraction_name=hyperparams_features["embeddings_name"])
+def initialize_datasets_precomputed_vector_sequence(user_level_data, subjects_split, hyperparams, hyperparams_features):
+    data_generator_train = DataGeneratorPrecomputedVectorSequence(user_level_data=user_level_data, subjects_split=subjects_split, set_type='train',
+                                                                  seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
+                                                                  max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                                  shuffle=False, data_generator_id="train",
+                                                                  embedding_dimension=hyperparams_features["embedding_dim"],
+                                                                  precomputed_vectors_path=hyperparams_features["precomputed_vectors_path"],
+                                                                  feature_extraction_name=hyperparams_features["embeddings_name"])
 
-    data_generator_valid = DataGeneratorVectorDistilBERT(user_level_data=user_level_data, subjects_split=subjects_split, set_type="valid",
-                                                         seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
-                                                         max_posts_per_user=hyperparams['max_posts_per_user'],
-                                                         shuffle=False, data_generator_id="valid",
-                                                         embedding_dimension=hyperparams_features["embedding_dim"],
-                                                         precomputed_vectors_path=hyperparams_features["precomputed_vectors_path"],
-                                                         feature_extraction_name=hyperparams_features["embeddings_name"])
+    data_generator_valid = DataGeneratorPrecomputedVectorSequence(user_level_data=user_level_data, subjects_split=subjects_split, set_type="valid",
+                                                                  seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
+                                                                  max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                                  shuffle=False, data_generator_id="valid",
+                                                                  embedding_dimension=hyperparams_features["embedding_dim"],
+                                                                  precomputed_vectors_path=hyperparams_features["precomputed_vectors_path"],
+                                                                  feature_extraction_name=hyperparams_features["embeddings_name"])
 
-    data_generator_test = DataGeneratorVectorDistilBERT(user_level_data=user_level_data, subjects_split=subjects_split, set_type="test",
-                                                        seq_len=hyperparams['maxlen'], batch_size=1,
-                                                        max_posts_per_user=hyperparams['max_posts_per_user'],
-                                                        shuffle=False, data_generator_id="test",
-                                                        embedding_dimension=hyperparams_features["embedding_dim"],
-                                                        precomputed_vectors_path=hyperparams_features["precomputed_vectors_path"],
-                                                         feature_extraction_name=hyperparams_features["embeddings_name"])
+    data_generator_test = DataGeneratorPrecomputedVectorSequence(user_level_data=user_level_data, subjects_split=subjects_split, set_type="test",
+                                                                 seq_len=hyperparams['maxlen'], batch_size=1,
+                                                                 max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                                 shuffle=False, data_generator_id="test",
+                                                                 embedding_dimension=hyperparams_features["embedding_dim"],
+                                                                 precomputed_vectors_path=hyperparams_features["precomputed_vectors_path"],
+                                                                 feature_extraction_name=hyperparams_features["embeddings_name"])
     return data_generator_train, data_generator_valid, data_generator_test
 
 

@@ -5,7 +5,7 @@ import numpy as np
 from loader.AbstractDataGenerator import AbstractDataGenerator
 
 
-class DataGeneratorUSEVector(AbstractDataGenerator):
+class DataGeneratorTensorFlowHubVector(AbstractDataGenerator):
     """Generates data for Keras"""
 
     def __init__(self, user_level_data, subjects_split, set_type, batch_size, seq_len, max_posts_per_user, data_generator_id, vectorizer, shuffle, embedding_dimension):

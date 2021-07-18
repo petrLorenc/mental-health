@@ -27,7 +27,7 @@ hyperparams_features = {
 }
 
 
-def build_bow_log_regression_model(hyperparams, hyperparams_features):
+def build_logistic_regression_model(hyperparams, hyperparams_features):
 
     _input = tf.keras.layers.Input(shape=(hyperparams_features["embedding_dim"],))
     # x = tf.keras.layers.Dense(64, activation="relu")(_input)

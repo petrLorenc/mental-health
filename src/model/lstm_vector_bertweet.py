@@ -33,9 +33,14 @@ hyperparams = {
 
     "padding": "pre"
 }
+hyperparams_features = {
+    # "module_url": "../resources/embeddings/distilbert-base-uncased",
+    "embeddings_name": "vinai-bertweet",
+    "embedding_dim": 768
+}
 
 
-def build_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features):
+def build_lstm_with_vector_input_distillbert(hyperparams, hyperparams_features):
     n_sentences = hyperparams['max_posts_per_user']
 
     _input = tf.keras.layers.Input(shape=(n_sentences, hyperparams_features['embedding_dim'],))

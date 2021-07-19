@@ -26,6 +26,7 @@ from model.lstm_vector_tran import build_lstm_with_vector_input_tran
 from model.lstm_stateful import build_lstm_stateful_model
 from model.neural_network import build_neural_network_model
 from model.neural_network_features import build_neural_network_model_features
+from model.logistic_regression_features import build_logistic_regression_model_features
 from model.lstm_vector_distillbert import build_lstm_with_vector_input_precomputed
 
 from test_utils.utils import test, test_stateful
@@ -90,7 +91,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     logger.info(args)
 
-    model_path = f'../resources/models/{args.dataset}_{args.model}_{args.version}{"_" + args.note if args.note else ""}'
+    model_path = f'../resources/models/{args.model}_{args.embeddings}_{args.embeddings_dim}_{args.version}{"_" + args.note if args.note else ""}'
 
     logger.info("Initializing datasets...\n")
     if args.dataset == "eRisk":
@@ -195,9 +196,10 @@ if __name__ == '__main__':
         else:
             from model.neural_network import hyperparams, hyperparams_features
 
-        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
-
-        hyperparams_features["vocabulary_path"] = os.path.join("../resources/generated", args.vocabulary)
+        if args.only_test:
+            hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
+        else:
+            hyperparams_features["vocabulary_path"] = os.path.join("../resources/generated", args.vocabulary)
         data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_unigrams(user_level_data,
                                                                                                        subjects_split,
                                                                                                        hyperparams,
@@ -228,7 +230,7 @@ if __name__ == '__main__':
         else:
             model = build_neural_network_model(hyperparams, hyperparams_features)
 
-    elif args.model == "neural_network_unigrams_features":
+    elif args.model == "neural_network_unigrams_features" or args.model == "log_regression_unigrams_features":
         from model.neural_network import hyperparams, hyperparams_features
 
         if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
@@ -239,12 +241,15 @@ if __name__ == '__main__':
                                                                                                                 hyperparams,
                                                                                                                 hyperparams_features)
         emotions_dim = len(load_NRC(hyperparams_features['nrc_lexicon_path']))
+        hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
 
         num2emo, _, _ = load_LIWC(hyperparams_features['liwc_path'])
         liwc_categories_dim = len(num2emo)
 
-        model = build_neural_network_model_features(hyperparams, hyperparams_features, emotions_dim, liwc_categories_dim)
-
+        if args.model == "neural_network_unigrams_features":
+            model = build_neural_network_model_features(hyperparams, hyperparams_features, emotions_dim, liwc_categories_dim)
+        else:
+            model = build_logistic_regression_model_features(hyperparams, hyperparams_features, emotions_dim, liwc_categories_dim)
     elif args.model.startswith("precomputed_embeddings_sequence"):
         from model.lstm_vector_distillbert import hyperparams
 
@@ -282,9 +287,8 @@ if __name__ == '__main__':
     else:
         raise Exception(f"Unknown model {args.model}")
 
-    if not args.only_test:
-        # override from command line
-        hyperparams.update({k: v for k, v in vars(args).items() if v is not None})
+    # override from command line
+    hyperparams.update({k: v for k, v in vars(args).items() if v is not None})
 
     experiment = initialize_experiment(hyperparams=hyperparams, hyperparams_features=hyperparams_features)
 

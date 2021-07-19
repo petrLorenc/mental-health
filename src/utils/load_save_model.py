@@ -17,8 +17,8 @@ def load_params(model_path):
         hyperparams = json.loads(hpf.read())
     with open(model_path + '.hpf.json', 'r') as hpff:
         hyperparams_features = json.loads(hpff.read())
-    hyperparams['optimizer'] = optimizers.Adam(lr=hyperparams['lr'],  # beta_1=0.9, beta_2=0.999, epsilon=0.0001,
-                                               decay=hyperparams['decay'])
+    hyperparams['optimizer'] = optimizers.Adam(lr=hyperparams['lr'] if "lr" in hyperparams else 5e-05,  # beta_1=0.9, beta_2=0.999, epsilon=0.0001,
+                                               decay=hyperparams['decay'] if "decay" in hyperparams else 0.001)
     return hyperparams, hyperparams_features
 
 

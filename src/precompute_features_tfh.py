@@ -31,19 +31,28 @@ def get_aggregation_fn(choice="vstack"):
         raise Exception(f"Unknown aggregation fn choice: {choice}")
 
 
+import argparse
+
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Train model')
+    parser.add_argument('--dataset', type=str)
+    parser.add_argument('--code', type=str)
+    parser.add_argument('--name', type=str)
+    parser.add_argument('--dimension', type=str)
+    parser.add_argument('--aggregation', type=str)
+    args = parser.parse_args()
+
     rewrite = True
     processing_batch = 25
-    dataset = "daic-woz"
-    # dataset = "eRisk"
+    dataset = args.dataset
 
-    code_name = "use4"
-    feature_extraction = "../resources/embeddings/use-4"
-    aggregation_choice = "minimum"
+    code_name = args.code
+    feature_extraction = args.name
+    embedding_dim = args.dimension
+    aggregation_choice = args.aggregation
 
     aggregation_fn = get_aggregation_fn(aggregation_choice)
 
-    embedding_dim = 512
     dir_to_save = f"../data/{dataset}/precomputed_features/"
 
     print(f"Checking directory to save features {dir_to_save}")
@@ -82,7 +91,9 @@ if __name__ == '__main__':
         try:
             for idx in range(num_batches + 1):
                 if len(raw_texts[idx * processing_batch: (idx + 1) * processing_batch]) > 0:
-                    preprocessed_vectors.append(model(raw_texts[idx * processing_batch: (idx + 1) * processing_batch]).numpy())
+                    output_from_model = model(raw_texts[idx * processing_batch: (idx + 1) * processing_batch]).numpy()
+                    print(output_from_model.shape)
+                    preprocessed_vectors.append(output_from_model)
             preprocessed_vectors = aggregation_fn(preprocessed_vectors)
         except Exception as e:
             print(f"{k} has errors with {len(raw_texts)} - {e}")

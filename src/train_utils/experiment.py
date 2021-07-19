@@ -7,7 +7,8 @@ def initialize_experiment(hyperparams, hyperparams_features):
     # Create an experiment with your api key
     experiment = Experiment(
         api_key="6XP0ix9zkGMuM24VbrnVRHSbf",
-        project_name=f'{hyperparams["dataset"]}_{hyperparams["model"]}_{hyperparams["embeddings"]}',
+        # project_name=f'{hyperparams["dataset"]}_{hyperparams["model"]}_{hyperparams["embeddings"]}',
+        project_name=f'running_evaluation_script_{hyperparams["dataset"]}',
         workspace="petr-lorenc",
         disabled=False
     )

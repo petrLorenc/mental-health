@@ -3,11 +3,12 @@ Each file with vectors will have name of subject will be saved as pickle
 """
 import os
 import numpy as np
+import random
 import pickle as plk
 from nltk.tokenize import RegexpTokenizer
 
 import tensorflow as tf
-from transformers import TFAutoModel, AutoTokenizer
+from transformers import XLNetTokenizer, TFXLNetModel
 
 from loader.data_loading import load_erisk_data, load_daic_data
 
@@ -17,18 +18,6 @@ if gpus:
     tf.config.experimental.set_visible_devices(devices=gpus[1], device_type='GPU')
     tf.config.experimental.set_memory_growth(device=gpus[1], enable=True)
 
-def get_aggregation_fn(choice="vstack"):
-    if choice == "vstack":
-        return np.vstack
-    elif choice == "average":
-        return lambda x: np.average(np.vstack(x), axis=0)
-    elif choice == "maximum":
-        return lambda x: np.max(np.vstack(x), axis=0)
-    elif choice == "minimum":
-        return lambda x: np.min(np.vstack(x), axis=0)
-    else:
-        raise Exception(f"Unknown aggregation fn choice: {choice}")
-
 import argparse
 
 if __name__ == '__main__':
@@ -37,20 +26,14 @@ if __name__ == '__main__':
     parser.add_argument('--code', type=str)
     parser.add_argument('--name', type=str)
     parser.add_argument('--dimension', type=str)
-    parser.add_argument('--aggregation', type=str)
-    parser.add_argument('--cls_position', type=int, default=0)
     args = parser.parse_args()
 
     rewrite = True
-    processing_batch = 25
     dataset = args.dataset
 
     code_name = args.code
     feature_extraction = args.name
     embedding_dim = args.dimension
-    aggregation_choice = args.aggregation
-
-    aggregation_fn = get_aggregation_fn(aggregation_choice)
 
     dir_to_save = f"../data/{dataset}/precomputed_features/"
 
@@ -59,8 +42,8 @@ if __name__ == '__main__':
         os.mkdir(dir_to_save)
 
     print("Loading feature extractor...")
-    tokenizer = AutoTokenizer.from_pretrained(feature_extraction)
-    vectorizer = TFAutoModel.from_pretrained(feature_extraction)
+    tokenizer = XLNetTokenizer.from_pretrained(feature_extraction)
+    vectorizer = TFXLNetModel.from_pretrained(feature_extraction)
 
     feature_extraction = feature_extraction.replace('/', '-')
 
@@ -81,25 +64,22 @@ if __name__ == '__main__':
         raise Exception(f"Unknown dataset: {dataset}")
 
     for k in user_level_data.keys():
-        if os.path.isfile(os.path.join(dir_to_save, k + f".feat.{code_name}.{aggregation_choice}.{embedding_dim}.plk")) and rewrite is False:
+        if os.path.isfile(os.path.join(dir_to_save, k + f".feat.{code_name}.{embedding_dim}.plk")) and rewrite is False:
             print(f"Skipping user {k}")
             continue
         raw_texts = user_level_data[k]["raw"]
+        whole_chunk = "".join(raw_texts)
+        tokens = whole_chunk.split(" ")
+        print(len(tokens))
+        if len(tokens) > 2048:
+            sample_size = 2048
+            sorted_sample = [tokens[i] for i in sorted(random.sample(range(len(tokens)), sample_size))]
+            whole_chunk = " ".join(sorted_sample)
 
-        num_batches = len(raw_texts) // processing_batch
-        preprocessed_vectors = []
-        try:
-            for idx in range(num_batches + 1):
-                if len(raw_texts[idx * processing_batch: (idx + 1) * processing_batch]) > 0:
-                    output_from_model = vectorizer(
-                        tokenizer(raw_texts[idx * processing_batch: (idx + 1) * processing_batch], return_tensors="tf", padding=True,
-                                  truncation=True)).last_hidden_state.numpy()
-                    print(output_from_model.shape)
-                    preprocessed_vectors.append(output_from_model[:, int(args.cls_position)])
-            preprocessed_vectors = aggregation_fn(preprocessed_vectors)
-            print(preprocessed_vectors.shape)
-        except Exception as e:
-            print(f"{k} has errors with {len(raw_texts)} - {e}")
-        with open(os.path.join(dir_to_save, k + f".feat.{code_name}.{aggregation_choice}.{embedding_dim}.plk"), "wb") as f:
-            plk.dump(preprocessed_vectors, f)
+        # (batch_size, num_predict, hidden_size)
+        embedding = vectorizer(tokenizer(whole_chunk, return_tensors="tf")).last_hidden_state.numpy()[0, -1, :]  # last token is CLS
+        print(embedding.shape)
+
+        with open(os.path.join(dir_to_save, k + f".feat.{code_name}.{embedding_dim}.plk"), "wb") as f:
+            plk.dump(embedding, f)
         print(f"{k} preprocessed")

@@ -44,6 +44,17 @@ def test(model, data_generator_valid, data_generator_test, experiment, hyperpara
     log_results(experiment, ground_truth, predictions, data_identifications)
 
 
+def test_attention(attention_model, data_generator_valid, data_generator_test, experiment, hyperparams):
+    pass
+    # for gen_data, label, data_identification in data_generator_test.yield_data_grouped_by_users():
+    #     for d in gen_data:
+    #         print(d.shape)
+    #         print(attention_model.predict_on_batch(d))
+    #         print()
+    #         print()
+    #         break
+
+
 def test_stateful(model, data_generator_valid, data_generator_test, experiment, hyperparams, hyperparams_features):
     logger.info("Testing model...\n")
 

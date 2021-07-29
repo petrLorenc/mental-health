@@ -6,7 +6,7 @@ from train_utils.metrics import Metrics
 from utils.default_config import DefaultHyperparameters
 
 hyperparams = DefaultHyperparameters({
-    "embeddings": "unigrams",
+    "embeddings": "",
     "dense_units": 128
 })
 hyperparams_features = {

@@ -71,13 +71,26 @@ if __name__ == '__main__':
         whole_chunk = "".join(raw_texts)
         tokens = whole_chunk.split(" ")
         print(len(tokens))
+        sample_size = 2048
         if len(tokens) > 2048:
-            sample_size = 2048
             sorted_sample = [tokens[i] for i in sorted(random.sample(range(len(tokens)), sample_size))]
             whole_chunk = " ".join(sorted_sample)
 
         # (batch_size, num_predict, hidden_size)
-        embedding = vectorizer(tokenizer(whole_chunk, return_tensors="tf")).last_hidden_state.numpy()[0, -1, :]  # last token is CLS
+        try:
+            embedding = vectorizer(tokenizer(whole_chunk, return_tensors="tf")).last_hidden_state.numpy()[0, -1, :]  # last token is CLS
+        except:
+            computed = False
+            while computed is False and sample_size > 100:
+                sample_size = int(0.9*sample_size)
+                try:
+                    sorted_sample = [tokens[i] for i in sorted(random.sample(range(len(tokens)), sample_size))]
+                    whole_chunk = " ".join(sorted_sample)
+                    embedding = vectorizer(tokenizer(whole_chunk, return_tensors="tf")).last_hidden_state.numpy()[0, -1, :]  # last token is CLS
+                    computed = True
+                except:
+                    print("Problem event with sample size " + str(sample_size))
+
         print(embedding.shape)
 
         with open(os.path.join(dir_to_save, k + f".feat.{code_name}.{embedding_dim}.plk"), "wb") as f:

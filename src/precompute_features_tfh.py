@@ -39,19 +39,15 @@ if __name__ == '__main__':
     parser.add_argument('--code', type=str)
     parser.add_argument('--name', type=str)
     parser.add_argument('--dimension', type=str)
-    parser.add_argument('--aggregation', type=str)
     args = parser.parse_args()
 
     rewrite = True
-    processing_batch = 25
+    processing_batch = 50
     dataset = args.dataset
 
     code_name = args.code
     feature_extraction = args.name
     embedding_dim = args.dimension
-    aggregation_choice = args.aggregation
-
-    aggregation_fn = get_aggregation_fn(aggregation_choice)
 
     dir_to_save = f"../data/{dataset}/precomputed_features/"
 
@@ -81,22 +77,33 @@ if __name__ == '__main__':
         raise Exception(f"Unknown dataset: {dataset}")
 
     for k in user_level_data.keys():
-        if os.path.isfile(os.path.join(dir_to_save, k + f".feat.{code_name}.{aggregation_choice}.{embedding_dim}.plk")) and rewrite is False:
-            print(f"Skipping user {k}")
-            continue
+        # if os.path.isfile(os.path.join(dir_to_save, k + f".feat.{code_name}.{aggregation_choice}.{embedding_dim}.plk")) and rewrite is False:
+        #     print(f"Skipping user {k}")
+        #     continue
         raw_texts = user_level_data[k]["raw"]
 
         num_batches = len(raw_texts) // processing_batch
         preprocessed_vectors = []
-        try:
-            for idx in range(num_batches + 1):
-                if len(raw_texts[idx * processing_batch: (idx + 1) * processing_batch]) > 0:
+
+        for idx in range(num_batches + 1):
+            if len(raw_texts[idx * processing_batch: (idx + 1) * processing_batch]) > 0:
+                try:
                     output_from_model = model(raw_texts[idx * processing_batch: (idx + 1) * processing_batch]).numpy()
                     print(output_from_model.shape)
                     preprocessed_vectors.append(output_from_model)
-            preprocessed_vectors = aggregation_fn(preprocessed_vectors)
-        except Exception as e:
-            print(f"{k} has errors with {len(raw_texts)} - {e}")
-        with open(os.path.join(dir_to_save, k + f".feat.{code_name}.{aggregation_choice}.{embedding_dim}.plk"), "wb") as f:
-            plk.dump(preprocessed_vectors, f)
-        print(f"{k} preprocessed")
+                except Exception as e:
+                    print(f"{k} has errors with {len(raw_texts)} - {e}")
+                    for separate_example in raw_texts[idx * processing_batch: (idx + 1) * processing_batch]:
+                        try:
+                            output_from_model = model([separate_example]).numpy()
+                        except Exception:
+                            output_from_model = np.zeros(shape=(1, int(args.dimension)))
+                        print(output_from_model.shape)
+                        preprocessed_vectors.append(output_from_model)
+        for aggregation_choice in ["vstack", "maximum", "minimum", "average"]:
+            aggregation_fn = get_aggregation_fn(aggregation_choice)
+            preprocessed_vectors_temp = aggregation_fn(preprocessed_vectors)
+            print(preprocessed_vectors_temp.shape)
+            with open(os.path.join(dir_to_save, k + f".feat.{code_name}.{aggregation_choice}.{embedding_dim}.plk"), "wb") as f:
+                plk.dump(preprocessed_vectors_temp, f)
+            print(f"{k} preprocessed - {aggregation_choice}")

@@ -81,13 +81,12 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Train model')
     parser.add_argument('--version', metavar="-v", type=int, default=0, help='version of model')
-    parser.add_argument('--dataset', metavar="-d", type=str, help='(supported "daic" or "erisk")')
+    parser.add_argument('--source_dataset', type=str, help='(supported "daic" or "erisk")')
+    parser.add_argument('--target_dataset', type=str, help='(supported "daic" or "erisk")')
     parser.add_argument('--embeddings', type=str, help='(supported "random", "glove" or "use")')
     parser.add_argument('--embeddings_dim', type=int, default=768, help='(supported "random", "glove" or "use")')
     parser.add_argument('--epochs', metavar="-e", type=int, help='number of epochs')
     parser.add_argument('--model', metavar="-t", type=str, help="(supported 'hierarchical', 'lstm' or 'bow')")
-    parser.add_argument('--only_test', type=str2bool, help="Only test - loading trained model from disk")
-    parser.add_argument('--smaller_data', type=str2bool, help="Only test data (small portion)")
     parser.add_argument('--note', type=str, default="default", help="Note")
     parser.add_argument('--vocabulary', type=str, help="BoW vocabulary name")
     parser.add_argument("--additional_feature_list", nargs="+", default=[])
@@ -98,28 +97,42 @@ if __name__ == '__main__':
     model_path = f'../resources/models/{args.model}_{args.embeddings}_{args.embeddings_dim}_{args.version}{"_" + args.note if args.note else ""}'
 
     logger.info("Initializing datasets...\n")
-    if args.dataset == "eRisk":
+    if args.source_dataset == "eRisk":
         writings_df = pickle.load(open('../data/eRisk/writings_df_depression_liwc', 'rb'))
-        if args.smaller_data:
-            writings_df = writings_df.sample(frac=0.1)
 
-        user_level_data, subjects_split = load_erisk_data(writings_df)
+        all_data_source_domain, subjects_split_source_domain = load_erisk_data(writings_df)
 
-    elif args.dataset == "daic-woz":
-        user_level_data, subjects_split = load_daic_data(path_train="../data/daic-woz/train_data.json",
-                                                         path_valid="../data/daic-woz/dev_data.json",
-                                                         path_test="../data/daic-woz/test_data.json",
-                                                         include_only=["Participant"],
-                                                         # include_only=["Ellie", "Participant"],
-                                                         limit_size=args.smaller_data,
-                                                         tokenizer=RegexpTokenizer(r'\w+'))
+    elif args.source_dataset == "daic-woz":
+        all_data_source_domain, subjects_split_source_domain = load_daic_data(path_train="../data/daic-woz/train_data.json",
+                                                                              path_valid="../data/daic-woz/dev_data.json",
+                                                                              path_test="../data/daic-woz/test_data.json",
+                                                                              include_only=["Participant"],
+                                                                              # include_only=["Ellie", "Participant"],
+                                                                              limit_size=False,
+                                                                              tokenizer=RegexpTokenizer(r'\w+'))
     else:
-        raise NotImplementedError(f"Not recognized dataset {args.dataset}")
+        raise NotImplementedError(f"Not recognized source_dataset {args.source_dataset}")
+    logger.info("Source dataset loaded")
+
+    if args.target_dataset == "eRisk":
+        writings_df = pickle.load(open('../data/eRisk/writings_df_depression_liwc', 'rb'))
+
+        all_data_target_domain, subjects_split_target_domain = load_erisk_data(writings_df)
+
+    elif args.target_dataset == "daic-woz":
+        all_data_target_domain, subjects_split_target_domain = load_daic_data(path_train="../data/daic-woz/train_data.json",
+                                                                              path_valid="../data/daic-woz/dev_data.json",
+                                                                              path_test="../data/daic-woz/test_data.json",
+                                                                              include_only=["Participant"],
+                                                                              # include_only=["Ellie", "Participant"],
+                                                                              limit_size=False,
+                                                                              tokenizer=RegexpTokenizer(r'\w+'))
+    else:
+        raise NotImplementedError(f"Not recognized target_dataset {args.target_dataset}")
+    logger.info("Target dataset loaded")
 
     if args.model == "hierarchical" or args.model == "hierarchicalRandom":
         from model.hierarchical_model import hyperparams, hyperparams_features
-
-        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
 
         if args.model == "hierarchical":
             hyperparams_features["embedding_dim"] = 300
@@ -138,10 +151,17 @@ if __name__ == '__main__':
             num2emo, whole_words, asterisk_words = load_LIWC(hyperparams_features['liwc_path'])
             liwc_categories_dim = len(num2emo)
 
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_hierarchical(user_level_data,
-                                                                                                           subjects_split,
-                                                                                                           hyperparams,
-                                                                                                           hyperparams_features)
+        data_generator_source_domain_train, data_generator_source_domain_valid, data_generator_source_domain_test = initialize_datasets_hierarchical(
+            all_data_source_domain,
+            subjects_split_source_domain,
+            hyperparams,
+            hyperparams_features)
+
+        data_generator_target_domain_train, data_generator_target_domain_valid, data_generator_target_domain_test = initialize_datasets_hierarchical(
+            all_data_target_domain,
+            subjects_split_target_domain,
+            hyperparams,
+            hyperparams_features)
 
         model = build_hierarchical_model(hyperparams, hyperparams_features,
                                          emotions_dim, stopwords_dim, liwc_categories_dim,
@@ -154,12 +174,16 @@ if __name__ == '__main__':
         else:
             from model.lstm_str_tran import hyperparams, hyperparams_features
 
-        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
-
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_str(user_level_data,
-                                                                                                  subjects_split,
-                                                                                                  hyperparams,
-                                                                                                  hyperparams_features)
+        data_generator_source_domain_train, data_generator_source_domain_valid, data_generator_source_domain_test = initialize_datasets_str(
+            all_data_source_domain,
+            subjects_split_source_domain,
+            hyperparams,
+            hyperparams_features)
+        data_generator_target_domain_train, data_generator_target_domain_valid, data_generator_target_domain_test = initialize_datasets_str(
+            all_data_target_domain,
+            subjects_split_target_domain,
+            hyperparams,
+            hyperparams_features)
         if args.model == "lstm_str_dan":
             model = build_lstm_with_str_input_dan(hyperparams, hyperparams_features)
         else:
@@ -171,12 +195,16 @@ if __name__ == '__main__':
         else:
             from model.lstm_vector_tran import hyperparams, hyperparams_features
 
-        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
-
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_tensorflowhub_vector(user_level_data,
-                                                                                                                   subjects_split,
-                                                                                                                   hyperparams,
-                                                                                                                   hyperparams_features)
+        data_generator_source_domain_train, data_generator_source_domain_valid, data_generator_source_domain_test = initialize_datasets_tensorflowhub_vector(
+            all_data_source_domain,
+            subjects_split_source_domain,
+            hyperparams,
+            hyperparams_features)
+        data_generator_target_domain_train, data_generator_target_domain_valid, data_generator_target_domain_test = initialize_datasets_tensorflowhub_vector(
+            all_data_target_domain,
+            subjects_split_target_domain,
+            hyperparams,
+            hyperparams_features)
         if args.model == "lstm_vector_dan":
             model = build_lstm_with_vector_input_dan(hyperparams, hyperparams_features)
         else:
@@ -185,12 +213,17 @@ if __name__ == '__main__':
     elif args.model == "lstm_stateful":
         from model.lstm_stateful import hyperparams, hyperparams_features
 
-        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
 
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_stateful(user_level_data,
-                                                                                                       subjects_split,
-                                                                                                       hyperparams,
-                                                                                                       hyperparams_features)
+        data_generator_source_domain_train, data_generator_source_domain_valid, data_generator_source_domain_test = initialize_datasets_stateful(
+            all_data_source_domain,
+            subjects_split_source_domain,
+            hyperparams,
+            hyperparams_features)
+        data_generator_target_domain_train, data_generator_target_domain_valid, data_generator_target_domain_test = initialize_datasets_stateful(
+            all_data_target_domain,
+            subjects_split_target_domain,
+            hyperparams,
+            hyperparams_features)
 
         model = build_lstm_stateful_model(hyperparams, hyperparams_features)
 
@@ -200,15 +233,20 @@ if __name__ == '__main__':
         else:
             from model.neural_network import hyperparams, hyperparams_features
 
-        if args.only_test:
-            hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
-        else:
-            hyperparams_features["vocabulary_path"] = os.path.join("../resources/generated", args.vocabulary)
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_unigrams(user_level_data,
-                                                                                                       subjects_split,
-                                                                                                       hyperparams,
-                                                                                                       hyperparams_features)
-        hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
+
+        hyperparams_features["vocabulary_path"] = os.path.join("../resources/generated", args.vocabulary)
+
+        data_generator_source_domain_train, data_generator_source_domain_valid, data_generator_source_domain_test = initialize_datasets_unigrams(
+            all_data_source_domain,
+            subjects_split_source_domain,
+            hyperparams,
+            hyperparams_features)
+        data_generator_target_domain_train, data_generator_target_domain_valid, data_generator_target_domain_test = initialize_datasets_unigrams(
+            all_data_target_domain,
+            subjects_split_target_domain,
+            hyperparams,
+            hyperparams_features)
+        hyperparams_features["embedding_dim"] = data_generator_source_domain_train.get_input_dimension()
 
         if args.model == "log_regression_unigrams":
             model = build_logistic_regression_model(hyperparams, hyperparams_features)
@@ -220,14 +258,19 @@ if __name__ == '__main__':
             from model.neural_network import hyperparams, hyperparams_features
         else:
             from model.logistic_regression import hyperparams, hyperparams_features
-        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
 
         hyperparams_features["vocabulary_path"] = os.path.join("../resources/generated", args.vocabulary)
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_bigrams(user_level_data,
-                                                                                                      subjects_split,
-                                                                                                      hyperparams,
-                                                                                                      hyperparams_features)
-        hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
+        data_generator_source_domain_train, data_generator_source_domain_valid, data_generator_source_domain_test = initialize_datasets_bigrams(
+            all_data_source_domain,
+            subjects_split_source_domain,
+            hyperparams,
+            hyperparams_features)
+        data_generator_target_domain_train, data_generator_target_domain_valid, data_generator_target_domain_test = initialize_datasets_bigrams(
+            all_data_target_domain,
+            subjects_split_target_domain,
+            hyperparams,
+            hyperparams_features)
+        hyperparams_features["embedding_dim"] = data_generator_source_domain_train.get_input_dimension()
 
         if args.model == "log_regression_bigrams":
             model = build_logistic_regression_model(hyperparams, hyperparams_features)
@@ -237,15 +280,19 @@ if __name__ == '__main__':
     elif args.model == "neural_network_unigrams_features" or args.model == "log_regression_unigrams_features":
         from model.neural_network import hyperparams, hyperparams_features
 
-        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
-
         hyperparams_features["vocabulary_path"] = os.path.join("../resources/generated", args.vocabulary)
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_unigrams_features(user_level_data,
-                                                                                                                subjects_split,
-                                                                                                                hyperparams,
-                                                                                                                hyperparams_features)
+        data_generator_source_domain_train, data_generator_source_domain_valid, data_generator_source_domain_test = initialize_datasets_unigrams_features(
+            all_data_source_domain,
+            subjects_split_source_domain,
+            hyperparams,
+            hyperparams_features)
+        data_generator_target_domain_train, data_generator_target_domain_valid, data_generator_target_domain_test = initialize_datasets_unigrams_features(
+            all_data_target_domain,
+            subjects_split_target_domain,
+            hyperparams,
+            hyperparams_features)
         emotions_dim = len(load_NRC(hyperparams_features['nrc_lexicon_path']))
-        hyperparams_features["embedding_dim"] = data_generator_train.get_input_dimension()
+        hyperparams_features["embedding_dim"] = data_generator_source_domain_train.get_input_dimension()
 
         num2emo, _, _ = load_LIWC(hyperparams_features['liwc_path'])
         liwc_categories_dim = len(num2emo)
@@ -258,25 +305,43 @@ if __name__ == '__main__':
         from model.vector_precomputed import hyperparams
 
         hyperparams_features = {"embeddings_name": args.embeddings, "embedding_dim": args.embeddings_dim,
-                                "precomputed_vectors_path": f"../data/{args.dataset}/precomputed_features/"}
-
-        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
+                                "precomputed_vectors_path": f"../data/{args.source_dataset}/precomputed_features/"}
 
         if len(args.additional_feature_list):
-            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_precomputed_group_of_vectors_sequence(
-                user_level_data,
-                subjects_split,
+            data_generator_source_domain_train, data_generator_source_domain_valid, data_generator_source_domain_test = initialize_datasets_precomputed_group_of_vectors_sequence(
+                all_data_source_domain,
+                subjects_split_source_domain,
+                hyperparams,
+                hyperparams_features,
+                args.additional_feature_list)
+
+            hyperparams_features["precomputed_vectors_path"] = f"../data/{args.target_dataset}/precomputed_features/"
+
+            data_generator_target_domain_train, data_generator_target_domain_valid, data_generator_target_domain_test = initialize_datasets_precomputed_group_of_vectors_sequence(
+                all_data_target_domain,
+                subjects_split_target_domain,
                 hyperparams,
                 hyperparams_features,
                 args.additional_feature_list)
         else:
-            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_precomputed_vector_sequence(user_level_data,
-                                                                                                                              subjects_split,
-                                                                                                                              hyperparams,
-                                                                                                                              hyperparams_features)
+            data_generator_source_domain_train, data_generator_source_domain_valid, data_generator_source_domain_test = initialize_datasets_precomputed_vector_sequence(
+                all_data_source_domain,
+                subjects_split_source_domain,
+                hyperparams,
+                hyperparams_features)
+
+            hyperparams_features["precomputed_vectors_path"] = f"../data/{args.target_dataset}/precomputed_features/"
+
+            data_generator_target_domain_train, data_generator_target_domain_valid, data_generator_target_domain_test = initialize_datasets_precomputed_vector_sequence(
+                all_data_target_domain,
+                subjects_split_target_domain,
+                hyperparams,
+                hyperparams_features)
+
         if args.model.endswith("attention_lstm") and len(args.additional_feature_list):
-            additional_dimension = data_generator_train.additional_dimension
-            model, attention_model = build_attention_and_features_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features, additional_features_dim=additional_dimension)
+            additional_dimension = data_generator_source_domain_train.additional_dimension
+            model, attention_model = build_attention_and_features_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features,
+                                                                                                     additional_features_dim=additional_dimension)
         elif args.model.endswith("attention_lstm"):
             model, attention_model = build_attention_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features)
         elif args.model.endswith("pure_lstm"):
@@ -287,12 +352,17 @@ if __name__ == '__main__':
         hyperparams_features = {"embeddings_name": args.embeddings, "embedding_dim": args.embeddings_dim,
                                 "precomputed_vectors_path": f"../data/{args.dataset}/precomputed_features/"}
 
-        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
+        data_generator_source_domain_train, data_generator_source_domain_valid, data_generator_source_domain_test = initialize_datasets_precomputed_vector_aggregated(
+            all_data_source_domain,
+            subjects_split_source_domain,
+            hyperparams,
+            hyperparams_features)
+        data_generator_target_domain_train, data_generator_target_domain_valid, data_generator_target_domain_test = initialize_datasets_precomputed_vector_aggregated(
+            all_data_target_domain,
+            subjects_split_target_domain,
+            hyperparams,
+            hyperparams_features)
 
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_precomputed_vector_aggregated(user_level_data,
-                                                                                                                            subjects_split,
-                                                                                                                            hyperparams,
-                                                                                                                            hyperparams_features)
         if args.model.endswith("logistic_regression"):
             from model.logistic_regression import hyperparams
 
@@ -308,43 +378,49 @@ if __name__ == '__main__':
 
     # override from command line
     hyperparams.update({k: v for k, v in vars(args).items() if v is not None})
+    hyperparams["dataset"] = hyperparams["source_dataset"]
+    hyperparams["only_test"] = False
+    hyperparams["smaller_data"] = False
 
     experiment = initialize_experiment(hyperparams=hyperparams, hyperparams_features=hyperparams_features)
 
-    if not hyperparams["only_test"]:
-        model, history = train(data_generator_train=data_generator_train,
-                               data_generator_valid=data_generator_valid,
-                               hyperparams=hyperparams,
-                               hyperparams_features=hyperparams_features,
-                               experiment=experiment,
-                               model=model, model_path=model_path)
-    else:
-        model = load_saved_model_weights(loaded_model_structure=model, model_path=model_path, hyperparams=hyperparams,
-                                         hyperparams_features=hyperparams_features, h5=True)
+    model, history = train(data_generator_train=data_generator_source_domain_train,
+                           data_generator_valid=data_generator_source_domain_valid,
+                           hyperparams=hyperparams,
+                           hyperparams_features=hyperparams_features,
+                           experiment=experiment,
+                           model=model, model_path=model_path)
+
+    model, history = train(data_generator_train=data_generator_target_domain_train,
+                           data_generator_valid=data_generator_target_domain_valid,
+                           hyperparams=hyperparams,
+                           hyperparams_features=hyperparams_features,
+                           experiment=experiment,
+                           model=model, model_path=model_path)
 
     if hyperparams["model"] == "log_regression":
         from model.logistic_regression import log_important_features
 
-        vocabulary = {v: k for k, v in data_generator_valid.vectorizer.vocabulary_.items()}
+        vocabulary = {v: k for k, v in data_generator_source_domain_valid.vectorizer.vocabulary_.items()}
         log_important_features(experiment=experiment, vocabulary=vocabulary, model=model)
 
     if "stateful" in hyperparams["model"]:
         test_stateful(model=model,
-                      data_generator_valid=data_generator_valid,
-                      data_generator_test=data_generator_test,
+                      data_generator_valid=data_generator_source_domain_valid,
+                      data_generator_test=data_generator_source_domain_test,
                       experiment=experiment,
                       hyperparams=hyperparams,
                       hyperparams_features=hyperparams_features)
     else:
         test(model=model,
-             data_generator_valid=data_generator_train,
-             data_generator_test=data_generator_valid,
+             data_generator_valid=data_generator_target_domain_train,
+             data_generator_test=data_generator_target_domain_valid,
              experiment=experiment,
              hyperparams=hyperparams)
 
         if "attention" in hyperparams["model"]:
             test_attention(attention_model=attention_model,
-                           data_generator_valid=data_generator_valid,
-                           data_generator_test=data_generator_test,
+                           data_generator_valid=data_generator_source_domain_valid,
+                           data_generator_test=data_generator_source_domain_test,
                            experiment=experiment,
                            hyperparams=hyperparams)

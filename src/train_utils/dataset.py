@@ -11,6 +11,7 @@ from loader.DataGeneratorTensorFlowHubVector import DataGeneratorTensorFlowHubVe
 from loader.DataGeneratorStateful import DataGeneratorStateful
 from loader.DataGeneratorPrecomputedVectorSequence import DataGeneratorPrecomputedVectorSequence
 from loader.DataGeneratorPrecomputedVectorAggregated import DataGeneratorPrecomputedVectorAggregated
+from loader.DataGeneratorPrecomputedGroupOfVectorsSequence import DataGeneratorPrecomputedGroupOfVectorsSequence
 
 
 def initialize_datasets_hierarchical(user_level_data, subjects_split, hyperparams, hyperparams_features):
@@ -129,6 +130,39 @@ def initialize_datasets_precomputed_vector_sequence(user_level_data, subjects_sp
                                                                  embedding_dimension=hyperparams_features["embedding_dim"],
                                                                  precomputed_vectors_path=hyperparams_features["precomputed_vectors_path"],
                                                                  feature_extraction_name=hyperparams_features["embeddings_name"])
+    return data_generator_train, data_generator_valid, data_generator_test
+
+
+def initialize_datasets_precomputed_group_of_vectors_sequence(user_level_data, subjects_split, hyperparams, hyperparams_features, other_features):
+    data_generator_train = DataGeneratorPrecomputedGroupOfVectorsSequence(user_level_data=user_level_data, subjects_split=subjects_split,
+                                                                          set_type='train',
+                                                                          seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
+                                                                          max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                                          shuffle=False, data_generator_id="train",
+                                                                          embedding_dimension=hyperparams_features["embedding_dim"],
+                                                                          precomputed_vectors_path=hyperparams_features["precomputed_vectors_path"],
+                                                                          embedding_name=hyperparams_features["embeddings_name"],
+                                                                          other_features=other_features)
+
+    data_generator_valid = DataGeneratorPrecomputedGroupOfVectorsSequence(user_level_data=user_level_data, subjects_split=subjects_split,
+                                                                          set_type="valid",
+                                                                          seq_len=hyperparams['maxlen'], batch_size=hyperparams['batch_size'],
+                                                                          max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                                          shuffle=False, data_generator_id="valid",
+                                                                          embedding_dimension=hyperparams_features["embedding_dim"],
+                                                                          precomputed_vectors_path=hyperparams_features["precomputed_vectors_path"],
+                                                                          embedding_name=hyperparams_features["embeddings_name"],
+                                                                          other_features=other_features)
+
+    data_generator_test = DataGeneratorPrecomputedGroupOfVectorsSequence(user_level_data=user_level_data, subjects_split=subjects_split,
+                                                                         set_type="test",
+                                                                         seq_len=hyperparams['maxlen'], batch_size=1,
+                                                                         max_posts_per_user=hyperparams['max_posts_per_user'],
+                                                                         shuffle=False, data_generator_id="test",
+                                                                         embedding_dimension=hyperparams_features["embedding_dim"],
+                                                                         precomputed_vectors_path=hyperparams_features["precomputed_vectors_path"],
+                                                                         embedding_name=hyperparams_features["embeddings_name"],
+                                                                         other_features=other_features)
     return data_generator_train, data_generator_valid, data_generator_test
 
 

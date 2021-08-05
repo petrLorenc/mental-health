@@ -8,15 +8,17 @@ class DefaultHyperparameters(MutableMapping):
     def __init__(self, *args, **kwargs):
         self.store = {
             "positive_class_weight": 2,
-            "max_posts_per_user": 15,
-            "batch_size": 64,
+            "chunk_size": 15,
+            "batch_size": 8,
             "epochs": 50,
-            "maxlen": 50,
+            "max_seq_len": 50,
 
             "reduce_lr_factor": 0.5,
-            "reduce_lr_patience": 55,
-            "scheduled_reduce_lr_freq": 95,
+            "reduce_lr_patience": 2,
+            "scheduled_reduce_lr_freq": 2,
             "scheduled_reduce_lr_factor": 0.5,
+            "early_stopping_patience": 10,
+            "learning_rate": 0.001,
             "threshold": 0.5,
 
             "optimizer": "adam",

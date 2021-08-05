@@ -20,7 +20,7 @@ def train_model(model, hyperparams, hyperparams_features,
     lr_schedule = callbacks.LearningRateScheduler(lambda epoch, lr:
                                                   lr if (epoch + 1) % hyperparams['scheduled_reduce_lr_freq'] != 0 else
                                                   lr * hyperparams['scheduled_reduce_lr_factor'], verbose=1)
-    early_stopping = callbacks.EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=3)
+    early_stopping = callbacks.EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=hyperparams['early_stopping_patience'])
     model_checkpoint = callbacks.ModelCheckpoint(
         f'../resources/generated/{hyperparams["model"]}_{hyperparams["embeddings"]}_{hyperparams["version"]}_{hyperparams["note"]}_best_model.h5',
         monitor='val_loss', mode='min', save_best_only=True)

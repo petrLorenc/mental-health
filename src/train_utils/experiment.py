@@ -2,13 +2,12 @@ from utils.logger import logger
 from comet_ml import Experiment, Optimizer
 
 
-def initialize_experiment(hyperparams, hyperparams_features):
+def initialize_experiment(hyperparams, hyperparams_features, project_name):
     logger.info("Preparing Experiment (Comet_ml)...\n")
     # Create an experiment with your api key
     experiment = Experiment(
         api_key="6XP0ix9zkGMuM24VbrnVRHSbf",
-        # project_name=f'{hyperparams["dataset"]}_{hyperparams["model"]}_{hyperparams["embeddings"]}',
-        project_name=f'running_evaluation_script_{hyperparams["dataset"]}',
+        project_name=project_name,
         workspace="petr-lorenc",
         disabled=False
     )
@@ -16,8 +15,6 @@ def initialize_experiment(hyperparams, hyperparams_features):
     experiment.add_tag(hyperparams["embeddings"])
     experiment.add_tag(hyperparams["dataset"])
     experiment.add_tag(hyperparams["model"])
-    experiment.log_dataset_info(hyperparams["only_test"])
-    experiment.log_dataset_info(hyperparams["smaller_data"])
     experiment.log_parameters(hyperparams)
     experiment.log_parameters(hyperparams_features)
 

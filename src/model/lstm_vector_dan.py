@@ -18,7 +18,7 @@ hyperparams_features = {
 
 
 def build_lstm_with_vector_input_dan(hyperparams, hyperparams_features):
-    n_sentences = hyperparams['max_posts_per_user']
+    n_sentences = hyperparams['chunk_size']
 
     _input = tf.keras.layers.Input(shape=(n_sentences, hyperparams_features['embedding_dim'],))
     x = tf.keras.layers.Masking(mask_value=0.)(_input)

@@ -28,7 +28,7 @@ from model.neural_network import build_neural_network_model
 from model.neural_network_features import build_neural_network_model_features
 from model.logistic_regression_features import build_logistic_regression_model_features
 from model.vector_precomputed import build_lstm_with_vector_input_precomputed, build_attention_lstm_with_vector_input_precomputed, \
-    build_attention_and_features_lstm_with_vector_input_precomputed
+    build_attention_and_features_lstm_with_vector_input_precomputed, build_attention_and_aggregated_features_lstm_with_vector_input_precomputed
 
 from test_utils.utils import test, test_stateful, test_attention
 from train_utils.utils import train
@@ -86,11 +86,12 @@ if __name__ == '__main__':
     parser.add_argument('--embeddings_dim', type=int, default=768, help='(supported "random", "glove" or "use")')
     parser.add_argument('--epochs', metavar="-e", type=int, help='number of epochs')
     parser.add_argument('--model', metavar="-t", type=str, help="(supported 'hierarchical', 'lstm' or 'bow')")
-    parser.add_argument('--only_test', type=str2bool, help="Only test - loading trained model from disk")
-    parser.add_argument('--smaller_data', type=str2bool, help="Only test data (small portion)")
+    parser.add_argument('--only_test', type=str2bool, help="Only test - loading trained model from disk", default=False)
+    parser.add_argument('--smaller_data', type=str2bool, help="Only test data (small portion)", default=False)
     parser.add_argument('--note', type=str, default="default", help="Note")
     parser.add_argument('--vocabulary', type=str, help="BoW vocabulary name")
     parser.add_argument("--additional_feature_list", nargs="+", default=[])
+    parser.add_argument("--additional_feature_aggregated", type=str2bool, default=False)
 
     args = parser.parse_args()
     logger.info(args)
@@ -255,20 +256,44 @@ if __name__ == '__main__':
         else:
             model = build_logistic_regression_model_features(hyperparams, hyperparams_features, emotions_dim, liwc_categories_dim)
     elif args.model.startswith("precomputed_embeddings_sequence"):
-        from model.vector_precomputed import hyperparams
+        # from model.vector_precomputed import hyperparams
+
+        hyperparams = {
+            "positive_class_weight": 1,  #
+            "chunk_size": 3,  #
+            "batch_size": 10,  #
+            "epochs": 50,
+
+            "threshold": 0.5,
+
+            "reduce_lr_factor": 0.5,
+            "reduce_lr_patience": 2,
+            "scheduled_reduce_lr_freq": 2,
+            "scheduled_reduce_lr_factor": 0.5,
+            "optimizer": "adam",
+            "learning_rate": 0.001,
+            "early_stopping_patience": 20,
+
+            "dropout_rate": 0,  #
+
+            "lstm_units": 256  #
+        }
 
         hyperparams_features = {"embeddings_name": args.embeddings, "embedding_dim": args.embeddings_dim,
                                 "precomputed_vectors_path": f"../data/{args.dataset}/precomputed_features/"}
 
-        if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
+        # if args.only_test: hyperparams, hyperparams_features = load_params(model_path=model_path)  # rewrite param
 
         if len(args.additional_feature_list):
+            logger.info("additional_features")
             data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_precomputed_group_of_vectors_sequence(
                 user_level_data,
                 subjects_split,
                 hyperparams,
                 hyperparams_features,
-                args.additional_feature_list)
+                args.additional_feature_list,
+                args.additional_feature_aggregated)
+
         else:
             data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_precomputed_vector_sequence(user_level_data,
                                                                                                                               subjects_split,
@@ -276,7 +301,12 @@ if __name__ == '__main__':
                                                                                                                               hyperparams_features)
         if args.model.endswith("attention_lstm") and len(args.additional_feature_list):
             additional_dimension = data_generator_train.additional_dimension
-            model, attention_model = build_attention_and_features_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features, additional_features_dim=additional_dimension)
+            if args.additional_feature_aggregated:
+                model, attention_model = build_attention_and_aggregated_features_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features,
+                                                                                                                    additional_features_dim=additional_dimension)
+            else:
+                model, attention_model = build_attention_and_features_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features,
+                                                                                                         additional_features_dim=additional_dimension)
         elif args.model.endswith("attention_lstm"):
             model, attention_model = build_attention_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features)
         elif args.model.endswith("pure_lstm"):
@@ -337,8 +367,9 @@ if __name__ == '__main__':
                       hyperparams_features=hyperparams_features)
     else:
         test(model=model,
-             data_generator_valid=data_generator_train,
-             data_generator_test=data_generator_valid,
+             data_generator_train=data_generator_train,
+             data_generator_valid=data_generator_valid,
+             data_generator_test=data_generator_test,
              experiment=experiment,
              hyperparams=hyperparams)
 

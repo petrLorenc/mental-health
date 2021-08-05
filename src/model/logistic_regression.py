@@ -9,7 +9,8 @@ from utils.default_config import DefaultHyperparameters
 
 hyperparams = DefaultHyperparameters({
     "embeddings": "unigrams",
-    "dense_units": 128
+    "learning_rate": 0.001,
+    "chunk_size": 100
 })
 
 hyperparams_features = {
@@ -28,7 +29,7 @@ def build_logistic_regression_model(hyperparams, hyperparams_features):
 
     model = tf.keras.Model(inputs=_input, outputs=_output)
     metrics_class = Metrics(threshold=hyperparams['threshold'])
-    model.compile(hyperparams['optimizer'], K.binary_crossentropy,
+    model.compile(tf.optimizers.Adam(learning_rate=hyperparams["learning_rate"]) if hyperparams['optimizer'] == "adam" else hyperparams["optimizer"], K.binary_crossentropy,
                                metrics=[metrics_class.precision_m, metrics_class.recall_m,
                                         metrics_class.f1_m, AUC()])
     model.summary()

@@ -10,10 +10,10 @@ import pickle as plk
 class DataGeneratorPrecomputedVectorAggregated(AbstractDataGenerator):
     """Generates data for Keras"""
 
-    def __init__(self, user_level_data, subjects_split, set_type, batch_size, seq_len, max_posts_per_user, data_generator_id, precomputed_vectors_path, feature_extraction_name, shuffle,
+    def __init__(self, user_level_data, subjects_split, set_type, batch_size, max_seq_len, chunk_size, data_generator_id, precomputed_vectors_path, feature_extraction_name, shuffle,
                  embedding_dimension):
         super().__init__(user_level_data=user_level_data, subjects_split=subjects_split, set_type=set_type, batch_size=batch_size,
-                         seq_len=seq_len, max_posts_per_user=max_posts_per_user, data_generator_id=data_generator_id, shuffle=shuffle)
+                         max_seq_len=max_seq_len, chunk_size=chunk_size, data_generator_id=data_generator_id, shuffle=shuffle)
         self.precomputed_vectors_path = precomputed_vectors_path
         self.feature_extraction_name = feature_extraction_name
         self.embedding_dimension = embedding_dimension

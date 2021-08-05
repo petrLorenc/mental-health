@@ -15,7 +15,7 @@ class DataGeneratorBiGrams(AbstractDataGenerator):
             self.vectorizer = vectorizer
 
         super().__init__(user_level_data=user_level_data, subjects_split=subjects_split, set_type=set_type, batch_size=batch_size,
-                         seq_len=None, max_posts_per_user=None, shuffle=False,
+                         max_seq_len=None, chunk_size=None, shuffle=False,
                          keep_last_batch=True, keep_first_batches=True, data_generator_id=data_generator_id)
 
     def on_data_loaded(self):

@@ -12,12 +12,13 @@ import pickle as plk
 class DataGeneratorPrecomputedGroupOfVectorsSequence(AbstractDataGenerator):
     """Generates data for Keras"""
 
-    def __init__(self, user_level_data, subjects_split, set_type, batch_size, seq_len, max_posts_per_user, data_generator_id, precomputed_vectors_path,
+    def __init__(self, user_level_data, subjects_split, set_type, batch_size, max_seq_len, chunk_size, data_generator_id, precomputed_vectors_path,
                  embedding_name, shuffle,
                  embedding_dimension,
-                 other_features):
+                 other_features,
+                 aggregate_other_features=False):
         super().__init__(user_level_data=user_level_data, subjects_split=subjects_split, set_type=set_type, batch_size=batch_size,
-                         seq_len=seq_len, max_posts_per_user=max_posts_per_user, data_generator_id=data_generator_id, shuffle=shuffle)
+                         max_seq_len=max_seq_len, chunk_size=chunk_size, data_generator_id=data_generator_id, shuffle=shuffle)
 
         self.precomputed_vectors_path = precomputed_vectors_path
 
@@ -25,7 +26,9 @@ class DataGeneratorPrecomputedGroupOfVectorsSequence(AbstractDataGenerator):
         self.embedding_dimension = embedding_dimension
         self.other_features = other_features
         self.additional_dimension = 0
+        self.aggregate_other_features = aggregate_other_features
         user = subjects_split["train"][0]
+
         for feat in self.other_features:
             with open(os.path.join(self.precomputed_vectors_path, user + f".feat.{feat}.plk"), "rb") as f:
                 precomputed_features = plk.load(f)
@@ -37,10 +40,10 @@ class DataGeneratorPrecomputedGroupOfVectorsSequence(AbstractDataGenerator):
         vectors = [precomputed_features[i] for i in data_range]
 
         if len(vectors) == 0:
-            return np.zeros(shape=(self.max_posts_per_user, self.embedding_dimension))
+            return np.zeros(shape=(self.chunk_size, self.embedding_dimension))
 
         vectors = np.array(vectors, dtype=np.float32)
-        vectors.resize((self.max_posts_per_user, self.embedding_dimension), refcheck=False)
+        vectors.resize((self.chunk_size, self.embedding_dimension), refcheck=False)
 
         return vectors
 
@@ -70,6 +73,8 @@ class DataGeneratorPrecomputedGroupOfVectorsSequence(AbstractDataGenerator):
         labels = np.array(labels, dtype=np.float32)
         features_embeddings = np.array(features_embeddings, dtype=np.float32)
         features_additional = np.array(features_additional, dtype=np.float32)
+        if self.aggregate_other_features:
+            features_additional = np.sum(features_additional, axis=1)
 
         return (features_embeddings, features_additional), labels
 
@@ -88,8 +93,13 @@ class DataGeneratorPrecomputedGroupOfVectorsSequence(AbstractDataGenerator):
                     temp_features.extend(precomputed_features[i] if type(precomputed_features[i]) is list else [precomputed_features[i]])
                 features_for_chunk.append(temp_features)
 
-            if len(vectors) == 0:
-                yield np.zeros(shape=(1, self.max_posts_per_user, self.embedding_dimension))
+            if self.aggregate_other_features:
+                features_additional = np.sum(features_for_chunk, axis=0)
             else:
-                vectors.resize((1, self.max_posts_per_user, self.embedding_dimension), refcheck=False)
-                yield np.array(vectors, dtype=np.float32), np.expand_dims(np.array(features_for_chunk, dtype=np.float32), axis=0)
+                features_additional = features_for_chunk
+
+            if len(vectors) == 0:
+                yield np.zeros(shape=(1, self.chunk_size, self.embedding_dimension)), np.zeros(shape=(1, self.additional_dimension))
+            else:
+                vectors.resize((1, self.chunk_size, self.embedding_dimension), refcheck=False)
+                yield np.array(vectors, dtype=np.float32), np.array(features_additional, dtype=np.float32).reshape(1, self.additional_dimension)

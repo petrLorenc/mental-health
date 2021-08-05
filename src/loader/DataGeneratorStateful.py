@@ -12,7 +12,7 @@ class DataGeneratorStateful(AbstractDataGenerator):
     def __init__(self, user_level_data, subjects_split, set_type, batch_size, data_generator_id, vectorizer, shuffle=True):
         self.vectorizer = vectorizer
         super().__init__(user_level_data=user_level_data, subjects_split=subjects_split, set_type=set_type, batch_size=batch_size,
-                         seq_len=None, max_posts_per_user=None, data_generator_id=data_generator_id, shuffle=shuffle)
+                         max_seq_len=None, chunk_size=None, data_generator_id=data_generator_id, shuffle=shuffle)
 
     def on_epoch_end(self):
         self.frozen_users = list(self.indexes_per_user.keys())
@@ -42,7 +42,7 @@ class DataGeneratorStateful(AbstractDataGenerator):
     #         features = np.array(features, dtype=np.float32)
     #     except:
     #         pass
-    #     # user_texts = np.array(user_texts, dtype=np.str).reshape(-1, self.max_posts_per_user)
+    #     # user_texts = np.array(user_texts, dtype=np.str).reshape(-1, self.chunk_size)
     #     return features, labels
 
     def on_data_loaded(self):

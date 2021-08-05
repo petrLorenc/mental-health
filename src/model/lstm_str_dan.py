@@ -19,7 +19,7 @@ hyperparams_features = {
 
 
 def build_lstm_with_str_input_dan(hyperparams, hyperparams_features):
-    n_sentences = hyperparams['max_posts_per_user']
+    n_sentences = hyperparams['chunk_size']
 
     embedding_layer = hub.KerasLayer(hyperparams_features["module_url"], trainable=hyperparams["trainable_embeddings"])
 

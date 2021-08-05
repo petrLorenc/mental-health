@@ -28,7 +28,7 @@ from model.neural_network import build_neural_network_model
 from model.neural_network_features import build_neural_network_model_features
 from model.logistic_regression_features import build_logistic_regression_model_features
 from model.vector_precomputed import build_lstm_with_vector_input_precomputed, build_attention_lstm_with_vector_input_precomputed, \
-    build_attention_and_features_lstm_with_vector_input_precomputed
+    build_attention_and_features_lstm_with_vector_input_precomputed, build_attention_and_aggregated_features_lstm_with_vector_input_precomputed
 
 from test_utils.utils import test, test_stateful, test_attention
 from train_utils.utils import train
@@ -84,12 +84,14 @@ if __name__ == '__main__':
     parser.add_argument('--source_dataset', type=str, help='(supported "daic" or "erisk")')
     parser.add_argument('--target_dataset', type=str, help='(supported "daic" or "erisk")')
     parser.add_argument('--embeddings', type=str, help='(supported "random", "glove" or "use")')
-    parser.add_argument('--embeddings_dim', type=int, default=768, help='(supported "random", "glove" or "use")')
+    parser.add_argument('--embeddings_dim', type=int, help='(supported "random", "glove" or "use")')
     parser.add_argument('--epochs', metavar="-e", type=int, help='number of epochs')
     parser.add_argument('--model', metavar="-t", type=str, help="(supported 'hierarchical', 'lstm' or 'bow')")
     parser.add_argument('--note', type=str, default="default", help="Note")
     parser.add_argument('--vocabulary', type=str, help="BoW vocabulary name")
     parser.add_argument("--additional_feature_list", nargs="+", default=[])
+    parser.add_argument("--additional_feature_aggregated", type=str2bool, default=False)
+
 
     args = parser.parse_args()
     logger.info(args)
@@ -246,6 +248,7 @@ if __name__ == '__main__':
             subjects_split_target_domain,
             hyperparams,
             hyperparams_features)
+
         hyperparams_features["embedding_dim"] = data_generator_source_domain_train.get_input_dimension()
 
         if args.model == "log_regression_unigrams":
@@ -254,7 +257,7 @@ if __name__ == '__main__':
             model = build_neural_network_model(hyperparams, hyperparams_features)
 
     elif args.model == "log_regression_bigrams" or args.model == "neural_network_bigrams":
-        if args.model == "log_regression_bigrams":
+        if args.model == "neural_network_bigrams":
             from model.neural_network import hyperparams, hyperparams_features
         else:
             from model.logistic_regression import hyperparams, hyperparams_features
@@ -313,7 +316,8 @@ if __name__ == '__main__':
                 subjects_split_source_domain,
                 hyperparams,
                 hyperparams_features,
-                args.additional_feature_list)
+                args.additional_feature_list,
+                args.additional_feature_aggregated)
 
             hyperparams_features["precomputed_vectors_path"] = f"../data/{args.target_dataset}/precomputed_features/"
 
@@ -322,7 +326,8 @@ if __name__ == '__main__':
                 subjects_split_target_domain,
                 hyperparams,
                 hyperparams_features,
-                args.additional_feature_list)
+                args.additional_feature_list,
+                args.additional_feature_aggregated)
         else:
             data_generator_source_domain_train, data_generator_source_domain_valid, data_generator_source_domain_test = initialize_datasets_precomputed_vector_sequence(
                 all_data_source_domain,
@@ -340,8 +345,12 @@ if __name__ == '__main__':
 
         if args.model.endswith("attention_lstm") and len(args.additional_feature_list):
             additional_dimension = data_generator_source_domain_train.additional_dimension
-            model, attention_model = build_attention_and_features_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features,
-                                                                                                     additional_features_dim=additional_dimension)
+            if args.additional_feature_aggregated:
+                model, attention_model = build_attention_and_aggregated_features_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features,
+                                                                                                                    additional_features_dim=additional_dimension)
+            else:
+                model, attention_model = build_attention_and_features_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features,
+                                                                                                         additional_features_dim=additional_dimension)
         elif args.model.endswith("attention_lstm"):
             model, attention_model = build_attention_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features)
         elif args.model.endswith("pure_lstm"):
@@ -391,7 +400,7 @@ if __name__ == '__main__':
                            experiment=experiment,
                            model=model, model_path=model_path)
 
-    if hyperparams["model"] == "log_regression":
+    if "log_regression" in hyperparams["model"]:
         from model.logistic_regression import log_important_features
 
         vocabulary = {v: k for k, v in data_generator_source_domain_valid.vectorizer.vocabulary_.items()}
@@ -406,8 +415,9 @@ if __name__ == '__main__':
                       hyperparams_features=hyperparams_features)
     else:
         test(model=model,
-             data_generator_valid=data_generator_target_domain_train,
-             data_generator_test=data_generator_target_domain_valid,
+             data_generator_train=data_generator_target_domain_train,
+             data_generator_valid=data_generator_target_domain_valid,
+             data_generator_test=data_generator_target_domain_test,
              experiment=experiment,
              hyperparams=hyperparams)
 

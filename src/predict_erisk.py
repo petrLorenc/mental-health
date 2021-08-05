@@ -98,8 +98,8 @@ def predict(test_data_object, nickname, model):
     rolling_window = 0
 
     data_generator = DAICDataGenerator(hyperparams_features=hyperparams_features,
-                                       seq_len=hyperparams['maxlen'], batch_size=1,
-                                       max_posts_per_user=None,
+                                       max_seq_len=hyperparams['max_seq_len'], batch_size=1,
+                                       chunk_size=None,
                                        posts_per_group=hyperparams['posts_per_group'],
                                        post_groups_per_user=None,
                                        shuffle=False, return_subjects=True,

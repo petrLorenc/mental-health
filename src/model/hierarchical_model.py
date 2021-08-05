@@ -35,30 +35,36 @@ hyperparams_features = {
 def build_hierarchical_model(hyperparams, hyperparams_features,
                              emotions_dim, stopwords_list_dim, liwc_categories_dim, word_embedding_type,
                              ignore_layer=[]):
-    vocabulary = load_dict_from_file(hyperparams_features["vocabulary_path"])
-
     if word_embedding_type == "random":
+        vocabulary = load_dict_from_file(hyperparams_features["vocabulary_path"])
         # dummy embedding matrix - ONLY FOR TESTING
         embedding_matrix = np.random.random((len(vocabulary), hyperparams_features['embedding_dim'])) - 0.5
     elif word_embedding_type == "glove":
         # real embedding matrix
+        vocabulary = load_dict_from_file(hyperparams_features["vocabulary_path"])
         embedding_matrix = load_embeddings(embeddings_path=hyperparams_features['embeddings_path'],
                                            embedding_dim=hyperparams_features['embedding_dim'],
                                            vocabulary=vocabulary)
+    elif "bert" in word_embedding_type:
+        pass
     else:
         raise NotImplementedError(f"Embeddings {word_embedding_type} not supported yet")
 
     # Post/sentence representation - word sequence
-    tokens_features = Input(shape=(hyperparams['maxlen'],), name='word_seq')
-    embedding_layer = Embedding(len(vocabulary),
-                                hyperparams_features['embedding_dim'],
-                                input_length=hyperparams['maxlen'],
-                                embeddings_regularizer=regularizers.l2(hyperparams['l2_embeddings']),
-                                weights=[embedding_matrix],
-                                trainable=hyperparams['trainable_embeddings'],
-                                name='embeddings_layer',
-                                mask_zero=True)(tokens_features)
-    embedding_layer = Dropout(hyperparams['dropout'], name='embedding_dropout')(embedding_layer)
+    if "bert" in word_embedding_type:
+        tokens_features = Input(shape=(hyperparams['max_seq_len'], hyperparams_features['embedding_dim']), name='word_seq')
+        embedding_layer = Dropout(hyperparams['dropout_rate'], name='embedding_dropout')(tokens_features)
+    else:
+        tokens_features = Input(shape=(hyperparams['max_seq_len'],), name='word_seq')
+        embedding_layer = Embedding(len(vocabulary),
+                                    hyperparams_features['embedding_dim'],
+                                    input_length=hyperparams['max_seq_len'],
+                                    embeddings_regularizer=regularizers.l2(hyperparams['l2_embeddings']),
+                                    weights=[embedding_matrix],
+                                    trainable=hyperparams['trainable_embeddings'],
+                                    name='embeddings_layer',
+                                    mask_zero=True)(tokens_features)
+        embedding_layer = Dropout(hyperparams['dropout_rate'], name='embedding_dropout')(embedding_layer)
 
     lstm_layers = LSTM(hyperparams['lstm_units'],
                        return_sequences='attention' not in ignore_layer,
@@ -82,21 +88,27 @@ def build_hierarchical_model(hyperparams, hyperparams_features,
 
     if 'batchnorm' not in ignore_layer:
         sent_representation = BatchNormalization(axis=1, momentum=hyperparams['norm_momentum'], name='sent_repr_norm')(sent_representation)
-    sent_representation = Dropout(hyperparams['dropout'], name='sent_repr_dropout')(sent_representation)
+    sent_representation = Dropout(hyperparams['dropout_rate'], name='sent_repr_dropout')(sent_representation)
 
     # Other features
     numerical_features_history = Input(shape=(
-        hyperparams['max_posts_per_user'],
+        hyperparams['chunk_size'],
         emotions_dim + 1 + liwc_categories_dim
     ), name='numeric_input_hist')  # emotions and pronouns
     sparse_features_history = Input(shape=(
-        hyperparams['max_posts_per_user'],
+        hyperparams['chunk_size'],
         stopwords_list_dim
     ), name='sparse_input_hist')  # stopwords
 
-    posts_history_input = Input(shape=(hyperparams['max_posts_per_user'],
-                                       hyperparams['maxlen']
-                                       ), name='hierarchical_word_seq_input')
+    if "bert" in word_embedding_type:
+        posts_history_input = Input(shape=(hyperparams['chunk_size'],
+                                           hyperparams['max_seq_len'],
+                                           hyperparams_features['embedding_dim']
+                                           ), name='hierarchical_word_seq_input')
+    else:
+        posts_history_input = Input(shape=(hyperparams['chunk_size'],
+                                           hyperparams['max_seq_len']
+                                           ), name='hierarchical_word_seq_input')
 
     # Hierarchy
     sentEncoder = Model(inputs=tokens_features,
@@ -159,7 +171,7 @@ def build_hierarchical_model(hyperparams, hyperparams_features,
     else:
         user_representation = lstm_user_layers
 
-    user_representation = Dropout(hyperparams['dropout'], name='user_repr_dropout')(user_representation)
+    user_representation = Dropout(hyperparams['dropout_rate'], name='user_repr_dropout')(user_representation)
 
     if hyperparams['dense_user_units']:
         user_representation = Dense(units=hyperparams['dense_user_units'], activation='relu',
@@ -180,5 +192,6 @@ def build_hierarchical_model(hyperparams, hyperparams_features,
                                metrics=[metrics_class.precision_m, metrics_class.recall_m,
                                         metrics_class.f1_m, AUC()])
 
-    return hierarchical_model
+    hierarchical_model.summary()
 
+    return hierarchical_model

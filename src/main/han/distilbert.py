@@ -17,6 +17,7 @@ np.random.seed(43)
 random.seed(43)
 
 from nltk.tokenize import RegexpTokenizer
+from sklearn.model_selection import StratifiedKFold
 
 from model.hierarchical_model import build_hierarchical_model
 from test_utils.utils import test
@@ -39,7 +40,7 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 config = {
     "algorithm": "bayes",
     "name": "Optimize HAN Network",
-    "spec": {"maxCombo": 10, "objective": "minimize", "metric": "loss"},
+    "spec": {"maxCombo": 10, "objective": "maximize", "metric": "average_CV_UAR"},
     "parameters": {
         "lstm_units": {
             "type": "integer",
@@ -77,12 +78,7 @@ config = {
             "max": 100,
             "scalingType": "uniform",
         },
-        "dropout_rate": {
-            "type": "float",
-            "min": 0.0,
-            "max": 0.5,
-            "scalingType": "uniform",
-        },
+        "dropout_rate": {"type": "discrete", "values": [0.0, 0.1, 0.2, 0.3, 0.4]},
         "batch_size": {"type": "discrete", "values": [4, 8, 16, 32]},
         "positive_class_weight": {"type": "discrete", "values": [1, 2, 3]},
         "learning_rate": {"type": "discrete", "values": [0.1, 0.01, 0.001, 0.0005]},
@@ -106,7 +102,7 @@ if __name__ == '__main__':
 
 
     embeddings = "distilbert.words.words"
-    model = "han"
+    model_name = "han"
     parser = argparse.ArgumentParser(description='Train model')
     parser.add_argument('--version', metavar="-v", type=int, default=0, help='version of model')
     parser.add_argument('--dataset', metavar="-d", type=str, help='(supported "daic" or "erisk")')
@@ -115,7 +111,6 @@ if __name__ == '__main__':
     parser.add_argument('--note', type=str, default=None, help="Note")
     args = parser.parse_args()
     logger.info(args)
-
 
     logger.info("Initializing datasets...\n")
     if args.dataset == "eRisk":
@@ -139,7 +134,7 @@ if __name__ == '__main__':
     hyperparams = {
         "embeddings": embeddings,
         "trainable_embeddings": False,
-        "model": model,
+        "model": model_name,
         "dataset": args.dataset,
         "version": args.version,
         "note": args.note,
@@ -161,7 +156,6 @@ if __name__ == '__main__':
         "reduce_lr_patience": 1,
         "scheduled_reduce_lr_freq": 1,
         "scheduled_reduce_lr_factor": 0.9,
-        "optimizer": "adam",
         "learning_rate": 0.005,
         "early_stopping_patience": 5,
 
@@ -193,57 +187,76 @@ if __name__ == '__main__':
         hyperparams["batch_size"] = experiment.get_parameter("batch_size")
         hyperparams["learning_rate"] = experiment.get_parameter("learning_rate")
 
-        emotions_dim = len(load_NRC(hyperparams_features['nrc_lexicon_path']))
-        stopwords_dim = len(load_list_from_file(hyperparams_features['stopwords_path']))
-
-        num2emo, whole_words, asterisk_words = load_LIWC(hyperparams_features['liwc_path'])
-        liwc_categories_dim = len(num2emo)
-
-        hyperparams["emotions_dim"] = emotions_dim
-        hyperparams["stopwords_dim"] = stopwords_dim
-        hyperparams["liwc_categories_dim"] = liwc_categories_dim
-
-        data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_hierarchical_precomputed(user_level_data,
-                                                                                                                       subjects_split,
-                                                                                                                       hyperparams,
-                                                                                                                       hyperparams_features)
-
-        model = build_hierarchical_model(hyperparams, hyperparams_features,
-                                         emotions_dim, stopwords_dim, liwc_categories_dim,
-                                         word_embedding_type=hyperparams_features["embeddings_name"])
-
         experiment.log_parameters(hyperparams)
         experiment.log_parameters(hyperparams_features)
 
-        model_path = f'../resources/models/{model}_{embeddings}_{args.version}_{str(random.random())}'
-        experiment.log_parameters("model_path", model_path)
+        UAPs, UARs, uF1s = [], [], []
 
-        model, history = train(data_generator_train=data_generator_train,
-                               data_generator_valid=data_generator_valid,
-                               hyperparams=hyperparams,
-                               hyperparams_features=hyperparams_features,
-                               experiment=experiment,
-                               model=model, model_path=model_path)
+        skf = StratifiedKFold(n_splits=5)
+        for train_idx, valid_idx in skf.split(subjects_split["train"], [user_level_data[x]["label"] for x in subjects_split["train"]]):
+            cross_validation_subjects_split = {
+                # to be comparable with other paper
+                'train': [x for idx, x in enumerate(subjects_split["train"]) if idx in train_idx],
+                'valid': [x for idx, x in enumerate(subjects_split["train"]) if idx in valid_idx],
+                'test': subjects_split["valid"]
+            }
 
-        test(model=model,
-             data_generator_train=data_generator_train,
-             data_generator_valid=data_generator_valid,
-             data_generator_test=data_generator_test,
-             experiment=experiment,
-             hyperparams=hyperparams)
+            emotions_dim = len(load_NRC(hyperparams_features['nrc_lexicon_path']))
+            stopwords_dim = len(load_list_from_file(hyperparams_features['stopwords_path']))
+
+            num2emo, whole_words, asterisk_words = load_LIWC(hyperparams_features['liwc_path'])
+            liwc_categories_dim = len(num2emo)
+
+            hyperparams["emotions_dim"] = emotions_dim
+            hyperparams["stopwords_dim"] = stopwords_dim
+            hyperparams["liwc_categories_dim"] = liwc_categories_dim
+
+            data_generator_train, data_generator_valid, data_generator_test = initialize_datasets_hierarchical_precomputed(user_level_data,
+                                                                                                                           cross_validation_subjects_split,
+                                                                                                                           hyperparams,
+                                                                                                                           hyperparams_features)
+
+            model = build_hierarchical_model(hyperparams, hyperparams_features,
+                                             emotions_dim, stopwords_dim, liwc_categories_dim,
+                                             word_embedding_type=hyperparams_features["embeddings_name"])
+
+            model_path = f'../../../resources/models/{model_name}_{embeddings}_{args.version}_{str(random.random())}'
+            experiment.log_parameters({f"model_path_{str(random.random())}": model_path})
+            logger.info(model_path)
+
+            model, history = train(data_generator_train=data_generator_train,
+                                   data_generator_valid=data_generator_valid,
+                                   hyperparams=hyperparams,
+                                   hyperparams_features=hyperparams_features,
+                                   experiment=experiment,
+                                   model=model, model_path=model_path)
+
+            UAP, UAR, uF1 = test(model=model,
+                                 data_generator_train=data_generator_train,
+                                 data_generator_valid=data_generator_valid,
+                                 data_generator_test=data_generator_test,
+                                 experiment=experiment,
+                                 hyperparams=hyperparams)
+
+            UAPs.append(UAP)
+            UARs.append(UAR)
+            uF1s.append(uF1)
+
+        experiment.log_metric("average_CV_UAP", np.average(UAPs))
+        experiment.log_metric("average_CV_UAR", np.average(UARs))
+        experiment.log_metric("average_CV_uF1s", np.average(uF1s))
 
         experiment.end()
 
     # experiment = initialize_experiment(hyperparams=hyperparams, hyperparams_features=hyperparams_features, project_name="daic-woz-optimization")
 
-    #optimizer_parameters   : {"batch_size": 8,
+    # optimizer_parameters   : {"batch_size": 8,
     # "chunk_size": 63,
     # "dense_bow_units": 74,
     # "dense_numerical_units": 29,
     # "dense_user_units": 135,
     # "dropout_rate": 0.33986336251817706,
     # "learning_rate": 0.0005, "lstm_units": 251, "max_seq_len": 19, "positive_class_weight": 2}
-
 
     # hyperparams["positive_class_weight"] = 1
     # hyperparams["chunk_size"] = 15

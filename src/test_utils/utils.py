@@ -47,7 +47,7 @@ def test(model, data_generator_train, data_generator_valid, data_generator_test,
 
     experiment.log_histogram_3d(values=ratios, name="train_ratio")
 
-    predictions = [int(x[0]) for x in map(lambda x: x > best_threshold_train, ratios)]
+    predictions = [int(x[0]) for x in map(lambda x: x > best_threshold_valid, ratios)]
     log_results(experiment, ground_truth, predictions, data_identifications, data_set="train")
 
     # testing best threshold trained on train-set on valid-set
@@ -77,7 +77,7 @@ def test(model, data_generator_train, data_generator_valid, data_generator_test,
 
     experiment.log_histogram_3d(values=ratios, name="valid_ratio")
 
-    predictions = [int(x[0]) for x in map(lambda x: x > best_threshold_train, ratios)]
+    predictions = [int(x[0]) for x in map(lambda x: x > best_threshold_valid, ratios)]
     log_results(experiment, ground_truth, predictions, data_identifications, data_set="valid")
 
     # testing best threshold trained on train-set on test-set
@@ -107,8 +107,9 @@ def test(model, data_generator_train, data_generator_valid, data_generator_test,
 
     experiment.log_histogram_3d(values=ratios, name="test_ratio")
 
-    predictions = [int(x[0]) for x in map(lambda x: x > best_threshold_train, ratios)]
-    log_results(experiment, ground_truth, predictions, data_identifications, data_set="test")
+    predictions = [int(x[0]) for x in map(lambda x: x > best_threshold_valid, ratios)]
+    UAP, UAR, uF1 = log_results(experiment, ground_truth, predictions, data_identifications, data_set="test")
+    return UAP, UAR, uF1
 
 
 def test_attention(attention_model, data_generator_valid, data_generator_test, experiment, hyperparams):
@@ -166,7 +167,7 @@ def get_best_threshold_based_on_data_set(model, experiment, data_generator, hype
         ground_truth.append(label)
         step += 1
 
-    experiment.log_histogram_3d(values=ratios, name="valid_ratio")
+    # experiment.log_histogram_3d(values=ratios, name="valid_ratio")
 
     # find best threshold for ratio
     best_threshold = 0.0
@@ -225,3 +226,4 @@ def log_results(experiment, ground_truth, predictions, data_identifications, dat
                                     y_predicted=predictions,
                                     labels=["0", "1"],
                                     index_to_example_function=lambda x: data_identifications[x])
+    return UAP, UAR, uF1

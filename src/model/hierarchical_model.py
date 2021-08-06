@@ -6,6 +6,7 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.metrics import AUC
 from train_utils.metrics import Metrics
 from utils.resource_loading import load_embeddings, load_dict_from_file
+import tensorflow as tf
 
 import numpy as np
 
@@ -188,7 +189,7 @@ def build_hierarchical_model(hyperparams, hyperparams_features,
                                outputs=output_layer)
 
     metrics_class = Metrics(threshold=hyperparams['threshold'])
-    hierarchical_model.compile(hyperparams['optimizer'], K.binary_crossentropy,
+    hierarchical_model.compile(tf.keras.optimizers.Adam(learning_rate=hyperparams["learning_rate"]), K.binary_crossentropy,
                                metrics=[metrics_class.precision_m, metrics_class.recall_m,
                                         metrics_class.f1_m, AUC()])
 

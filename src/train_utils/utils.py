@@ -73,11 +73,11 @@ def train(data_generator_train, data_generator_valid,
                                  ]),
                                  workers=1, experiment=experiment)
     logger.info("Saving model...\n")
-    try:
-        save_model_and_params(model, model_path, hyperparams, hyperparams_features)
-        experiment.log_parameter("model_path", model_path)
-    except:
-        logger.error("Could not save model.\n")
+    # try:
+    save_model_and_params(model, model_path, hyperparams, hyperparams_features)
+    experiment.log_parameter("model_path", model_path)
+    # except:
+    #     logger.error("Could not save model.\n")
 
     return model, history
 

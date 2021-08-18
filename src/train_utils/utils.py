@@ -1,6 +1,7 @@
 from utils.logger import logger
 
 import numpy as np
+import random
 from tensorflow.keras import callbacks
 from train_utils.callbacks import WeightsHistory, LRHistory
 
@@ -22,7 +23,7 @@ def train_model(model, hyperparams, hyperparams_features,
                                                   lr * hyperparams['scheduled_reduce_lr_factor'], verbose=1)
     early_stopping = callbacks.EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=hyperparams['early_stopping_patience'])
     model_checkpoint = callbacks.ModelCheckpoint(
-        f'../resources/generated/{hyperparams["model"]}_{hyperparams["embeddings"]}_{hyperparams["version"]}_{hyperparams["note"]}_best_model.h5',
+        f'/home/petlor/mental-health/code/resources/generated/{hyperparams_features["model"]}_{hyperparams_features["embeddings_name"]}_{hyperparams["version"]}_{str(random.random())}_best_model.h5',
         monitor='val_loss', mode='min', save_best_only=True)
     callbacks_dict = {
         # 'freeze_layer': freeze_layer,
@@ -35,7 +36,7 @@ def train_model(model, hyperparams, hyperparams_features,
     }
 
     logger.info("Training model...\n")
-    if "stateful" in hyperparams["model"]:
+    if "stateful" in hyperparams_features["model"]:
         for e in range(epochs):
             for data, label, _ in data_generator_train.yield_data_grouped_by_users():
                 model.reset_states()

@@ -8,7 +8,8 @@ from loader.DataGeneratorStr import DataGeneratorStr
 # from loader.DataGeneratorUniGrams import DataGeneratorUnigrams
 from loader.DataGeneratorUniGramsChunked import DataGeneratorUnigrams
 from loader.DataGeneratorUniGramsFeatures import DataGeneratorUnigramsFeatures
-from loader.DataGeneratorBiGrams import DataGeneratorBiGrams
+# from loader.DataGeneratorBiGrams import DataGeneratorBiGrams
+from loader.DataGeneratorBiGramsChunked import DataGeneratorBiGrams
 from loader.DataGeneratorTensorFlowHubVector import DataGeneratorTensorFlowHubVector
 from loader.DataGeneratorStateful import DataGeneratorStateful
 from loader.DataGeneratorPrecomputedVectorSequence import DataGeneratorPrecomputedVectorSequence
@@ -211,18 +212,18 @@ def initialize_datasets_precomputed_group_of_vectors_sequence(user_level_data, s
 def initialize_datasets_unigrams(user_level_data, subjects_split, hyperparams, hyperparams_features):
     data_generator_train = DataGeneratorUnigrams(user_level_data, subjects_split, set_type='train',
                                                  hyperparams_features=hyperparams_features,
-                                                 batch_size=1, keep_first_batches=False,
+                                                 batch_size=hyperparams['batch_size'], keep_first_batches=False,
                                                  data_generator_id="train", chunk_size=hyperparams['chunk_size'])
 
     data_generator_valid = DataGeneratorUnigrams(user_level_data, subjects_split, set_type="valid",
                                                  hyperparams_features=hyperparams_features,
-                                                 batch_size=1, keep_first_batches=False,
+                                                 batch_size=hyperparams['batch_size'], keep_first_batches=False,
                                                  vectorizer=data_generator_train.vectorizer,
                                                  data_generator_id="valid", chunk_size=hyperparams['chunk_size'])
 
     data_generator_test = DataGeneratorUnigrams(user_level_data, subjects_split, set_type="test",
                                                 hyperparams_features=hyperparams_features,
-                                                batch_size=1, keep_first_batches=False,
+                                                batch_size=hyperparams['batch_size'], keep_first_batches=False,
                                                 vectorizer=data_generator_train.vectorizer,
                                                 data_generator_id="test", chunk_size=hyperparams['chunk_size'])
     return data_generator_train, data_generator_valid, data_generator_test
@@ -251,20 +252,20 @@ def initialize_datasets_unigrams_features(user_level_data, subjects_split, hyper
 def initialize_datasets_bigrams(user_level_data, subjects_split, hyperparams, hyperparams_features):
     data_generator_train = DataGeneratorBiGrams(user_level_data, subjects_split, set_type='train',
                                                 hyperparams_features=hyperparams_features,
-                                                batch_size=1,
-                                                data_generator_id="train")
+                                                batch_size=hyperparams['batch_size'],
+                                                data_generator_id="train", chunk_size=hyperparams['chunk_size'])
 
     data_generator_valid = DataGeneratorBiGrams(user_level_data, subjects_split, set_type="valid",
                                                 hyperparams_features=hyperparams_features,
-                                                batch_size=1,
+                                                batch_size=hyperparams['batch_size'],
                                                 vectorizer=data_generator_train.vectorizer,
-                                                data_generator_id="valid")
+                                                data_generator_id="valid", chunk_size=hyperparams['chunk_size'])
 
     data_generator_test = DataGeneratorBiGrams(user_level_data, subjects_split, set_type="test",
                                                hyperparams_features=hyperparams_features,
-                                               batch_size=1,
+                                               batch_size=hyperparams['batch_size'],
                                                vectorizer=data_generator_train.vectorizer,
-                                               data_generator_id="test")
+                                               data_generator_id="test", chunk_size=hyperparams['chunk_size'])
     return data_generator_train, data_generator_valid, data_generator_test
 
 

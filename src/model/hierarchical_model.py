@@ -33,9 +33,14 @@ hyperparams_features = {
 }
 
 
-def build_hierarchical_model(hyperparams, hyperparams_features,
-                             emotions_dim, stopwords_list_dim, liwc_categories_dim, word_embedding_type,
-                             ignore_layer=[]):
+def build_hierarchical_model(hyperparams, hyperparams_features):
+
+    emotions_dim = hyperparams["emotions_dim"]
+    stopwords_list_dim = hyperparams["stopwords_dim"]
+    liwc_categories_dim = hyperparams["liwc_categories_dim"]
+    word_embedding_type = hyperparams_features["word_embedding_type"]
+    ignore_layer = []
+
     if word_embedding_type == "random":
         vocabulary = load_dict_from_file(hyperparams_features["vocabulary_path"])
         # dummy embedding matrix - ONLY FOR TESTING

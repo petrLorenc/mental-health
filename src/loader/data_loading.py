@@ -4,12 +4,16 @@ import json
 # cleaning the text
 import re
 import contractions
+import random
 
 
 def load_erisk_data(writings_df, valid_prop=0.2,
                     min_post_len=1, labelcol='label'):
     training_subjects = list(set(writings_df[writings_df['subset'] == 'train'].subject))
     test_subjects = list(set(writings_df[writings_df['subset'] == 'test'].subject))
+
+    # training_subjects = random.sample(training_subjects, k=int(len(training_subjects) * 0.1))
+    # test_subjects = random.sample(test_subjects, k=int(len(test_subjects) * 0.1))
 
     training_subjects = sorted(training_subjects)  # ensuring reproducibility
     valid_subjects_size = int(len(training_subjects) * valid_prop)
@@ -36,6 +40,10 @@ def load_erisk_data(writings_df, valid_prop=0.2,
             continue
         if labelcol == 'label':
             label = row.label
+
+        if row.subject not in subjects_split["train"] and row.subject not in subjects_split["valid"] and row.subject not in subjects_split["test"]:
+            continue
+
         if row.subject not in user_level_texts.keys():
             user_level_texts[row.subject] = {}
             user_level_texts[row.subject]['texts'] = [words]

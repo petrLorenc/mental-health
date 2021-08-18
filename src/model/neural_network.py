@@ -27,7 +27,7 @@ def build_neural_network_model(hyperparams, hyperparams_features):
 
     model = tf.keras.Model(inputs=_input, outputs=_output)
     metrics_class = Metrics(threshold=hyperparams['threshold'])
-    model.compile(tf.optimizers.Adam(learning_rate=hyperparams["learning_rate"]) if hyperparams['optimizer'] == "adam" else hyperparams["optimizer"], K.binary_crossentropy,
+    model.compile(tf.optimizers.Adam(learning_rate=hyperparams["learning_rate"]) if "learning_rate" in hyperparams else hyperparams["optimizer"], K.binary_crossentropy,
                                metrics=[metrics_class.precision_m, metrics_class.recall_m,
                                         metrics_class.f1_m, AUC()])
     model.summary()

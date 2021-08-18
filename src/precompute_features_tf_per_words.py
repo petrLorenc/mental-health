@@ -33,8 +33,8 @@ if __name__ == '__main__':
     parser.add_argument('--dimension', type=str)
     args = parser.parse_args()
 
-    rewrite = True
-    processing_batch = 10
+    rewrite = False
+    processing_batch = 5
     dataset = args.dataset
 
     code_name = args.code

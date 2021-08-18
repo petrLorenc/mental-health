@@ -31,7 +31,7 @@ def build_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features):
 
     model = tf.keras.Model(inputs=_input, outputs=_output)
     metrics_class.threshold = hyperparams['threshold']
-    model.compile(tf.optimizers.Adam(learning_rate=hyperparams["learning_rate"]) if hyperparams['optimizer'] == "adam" else hyperparams["optimizer"], K.binary_crossentropy,
+    model.compile(tf.optimizers.Adam(learning_rate=hyperparams["learning_rate"]) if "learning_rate" in hyperparams else hyperparams["optimizer"], K.binary_crossentropy,
                   metrics=[metrics_class.precision_m, metrics_class.recall_m,
                            metrics_class.f1_m, AUC()])
     model.summary()

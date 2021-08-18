@@ -12,9 +12,8 @@ def initialize_experiment(hyperparams, hyperparams_features, project_name):
         disabled=False
     )
 
-    experiment.add_tag(hyperparams["embeddings"])
-    experiment.add_tag(hyperparams["dataset"])
-    experiment.add_tag(hyperparams["model"])
+    experiment.add_tag(hyperparams_features["embeddings_name"])
+    experiment.add_tag(hyperparams_features["model"])
     experiment.log_parameters(hyperparams)
     experiment.log_parameters(hyperparams_features)
 

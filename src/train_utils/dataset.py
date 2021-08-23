@@ -175,11 +175,15 @@ def initialize_datasets_precomputed_vector_sequence(user_level_data, subjects_sp
     return data_generator_train, data_generator_valid, data_generator_test
 
 
-def initialize_datasets_precomputed_group_of_vectors_sequence(user_level_data, subjects_split, hyperparams, hyperparams_features, other_features,
-                                                              additional_feature_aggregated):
+def initialize_datasets_precomputed_group_of_vectors_sequence(user_level_data, subjects_split, hyperparams, hyperparams_features):
+    other_features = ["emotions",
+                      "liwc",
+                      "pronouns",
+                      "stopwords"]
     data_generator_train = DataGeneratorPrecomputedGroupOfVectorsSequence(user_level_data=user_level_data, subjects_split=subjects_split,
                                                                           set_type='train',
-                                                                          max_seq_len=hyperparams['max_seq_len'], batch_size=hyperparams['batch_size'],
+                                                                          max_seq_len=hyperparams['max_seq_len'],
+                                                                          batch_size=hyperparams['batch_size'],
                                                                           chunk_size=hyperparams['chunk_size'],
                                                                           shuffle=False, data_generator_id="train",
                                                                           embedding_dimension=hyperparams_features["embedding_dim"],
@@ -189,7 +193,8 @@ def initialize_datasets_precomputed_group_of_vectors_sequence(user_level_data, s
 
     data_generator_valid = DataGeneratorPrecomputedGroupOfVectorsSequence(user_level_data=user_level_data, subjects_split=subjects_split,
                                                                           set_type="valid",
-                                                                          max_max_seq_len=hyperparams['max_seq_len'], batch_size=hyperparams['batch_size'],
+                                                                          max_seq_len=hyperparams['max_seq_len'],
+                                                                          batch_size=hyperparams['batch_size'],
                                                                           chunk_size=hyperparams['chunk_size'],
                                                                           shuffle=False, data_generator_id="valid",
                                                                           embedding_dimension=hyperparams_features["embedding_dim"],

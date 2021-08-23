@@ -51,7 +51,7 @@ def build_attention_lstm_with_vector_input_precomputed(hyperparams, hyperparams_
     attention_user = attention_user_layer(lstm_user_layers)
     attention_user = Flatten()(attention_user)
     attention_user_output = Activation('softmax', name="attention_output")(attention_user)
-    attention_user = RepeatVector(hyperparams['lstm_units_user'])(attention_user_output)
+    attention_user = RepeatVector(hyperparams['lstm_units'])(attention_user_output)
     attention_user = Permute([2, 1])(attention_user)
 
     user_representation = Multiply()([lstm_user_layers, attention_user])
@@ -65,12 +65,12 @@ def build_attention_lstm_with_vector_input_precomputed(hyperparams, hyperparams_
     model = tf.keras.Model(inputs=_input, outputs=_output)
     attention_model = tf.keras.Model(inputs=_input, outputs=attention_user_output)
     metrics_class.threshold = hyperparams['threshold']
-    model.compile(hyperparams['optimizer'], K.binary_crossentropy,
+    model.compile(tf.optimizers.Adam(learning_rate=hyperparams["learning_rate"]) if "learning_rate" in hyperparams else hyperparams["optimizer"], K.binary_crossentropy,
                   metrics=[metrics_class.precision_m, metrics_class.recall_m,
                            metrics_class.f1_m, AUC()])
-    attention_model.compile(hyperparams['optimizer'], K.binary_crossentropy)
+    attention_model.compile(tf.optimizers.Adam(learning_rate=hyperparams["learning_rate"]) if "learning_rate" in hyperparams else hyperparams["optimizer"], K.binary_crossentropy)
     model.summary()
-    return model, attention_model
+    return model
 
 
 def build_attention_and_features_lstm_with_vector_input_precomputed(hyperparams, hyperparams_features, additional_features_dim):
@@ -103,13 +103,13 @@ def build_attention_and_features_lstm_with_vector_input_precomputed(hyperparams,
 
     model = tf.keras.Model(inputs=[_input, features_input], outputs=_output)
     metrics_class.threshold = hyperparams['threshold']
-    model.compile(hyperparams['optimizer'], K.binary_crossentropy,
+    model.compile(tf.optimizers.Adam(learning_rate=hyperparams["learning_rate"]) if "learning_rate" in hyperparams else hyperparams["optimizer"], K.binary_crossentropy,
                   metrics=[metrics_class.precision_m, metrics_class.recall_m,
                            metrics_class.f1_m, AUC()])
     model.summary()
 
     attention_model = tf.keras.Model(inputs=[_input, features_input], outputs=attention_user_output)
-    attention_model.compile(hyperparams['optimizer'], K.binary_crossentropy)
+    attention_model.compile(tf.optimizers.Adam(learning_rate=hyperparams["learning_rate"]) if "learning_rate" in hyperparams else hyperparams["optimizer"], K.binary_crossentropy)
 
     return model, attention_model
 
@@ -129,7 +129,7 @@ def build_attention_and_aggregated_features_lstm_with_vector_input_precomputed(h
     attention_user = attention_user_layer(lstm_user_layers)
     attention_user = Flatten()(attention_user)
     attention_user_output = Activation('softmax')(attention_user)
-    attention_user = RepeatVector(hyperparams['lstm_units_user'])(attention_user_output)
+    attention_user = RepeatVector(hyperparams['lstm_units'])(attention_user_output)
     attention_user = Permute([2, 1])(attention_user)
 
     user_representation = Multiply()([lstm_user_layers, attention_user])
@@ -141,12 +141,12 @@ def build_attention_and_aggregated_features_lstm_with_vector_input_precomputed(h
     _output = tf.keras.layers.Dense(1, activation="sigmoid")(user_representation)
     metrics_class.threshold = hyperparams['threshold']
     model = tf.keras.Model(inputs=[_input, features_input], outputs=_output)
-    model.compile(hyperparams['optimizer'], K.binary_crossentropy,
+    model.compile(tf.optimizers.Adam(learning_rate=hyperparams["learning_rate"]) if "learning_rate" in hyperparams else hyperparams["optimizer"], K.binary_crossentropy,
                   metrics=[metrics_class.precision_m, metrics_class.recall_m,
                            metrics_class.f1_m, AUC()])
     model.summary()
 
     attention_model = tf.keras.Model(inputs=[_input, features_input], outputs=attention_user_output)
-    attention_model.compile(hyperparams['optimizer'], K.binary_crossentropy)
+    attention_model.compile(tf.optimizers.Adam(learning_rate=hyperparams["learning_rate"]) if "learning_rate" in hyperparams else hyperparams["optimizer"], K.binary_crossentropy)
 
-    return model, attention_model
+    return model

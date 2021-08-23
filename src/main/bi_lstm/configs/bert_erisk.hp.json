@@ -1,0 +1,19 @@
+{
+  "positive_class_weight": 1,
+  "chunk_size": 5,
+  "batch_size": 32,
+  "epochs": 100,
+  "threshold": 0.5,
+  "reduce_lr_factor": 0.9,
+  "reduce_lr_patience": 1,
+  "scheduled_reduce_lr_freq": 1,
+  "scheduled_reduce_lr_factor": 0.9,
+  "learning_rate": 0.01,
+  "early_stopping_patience": 2,
+  "dropout_rate": 0.1,
+  "lstm_units": 100,
+  "max_seq_len": 100,
+  "dataset": "daic-woz",
+  "version": 0,
+  "note": null
+}

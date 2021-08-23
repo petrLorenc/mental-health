@@ -52,7 +52,6 @@ class HyperparamSearch:
 
         parser = argparse.ArgumentParser(description='Train model')
         parser.add_argument('--version', metavar="-v", type=int, default=0, help='version of model')
-        parser.add_argument('--dataset', metavar="-d", type=str, help='(supported "daic" or "erisk")')
         parser.add_argument('--note', type=str, default=None, help="Note")
         parser.add_argument('--model_path', type=str, help="Path to trained model")
         parser.add_argument('--gpu', type=int, default=0)
@@ -68,9 +67,9 @@ class HyperparamSearch:
         print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
         logger.info("Initializing datasets...\n")
-        user_level_data, subjects_split = load_daic_data(path_train="../../../data/daic-woz/train_data.json",
-                                                                       path_valid="../../../data/daic-woz/dev_data.json",
-                                                                       path_test="../../../data/daic-woz/test_data.json",
+        user_level_data, subjects_split = load_daic_data(path_train="/home/petlor/mental-health/code/data/daic-woz/train_data.json",
+                                                                       path_valid="/home/petlor/mental-health/code/data/daic-woz/dev_data.json",
+                                                                       path_test="/home/petlor/mental-health/code/data/daic-woz/test_data.json",
                                                                        include_only=["Participant"],
                                                                        # include_only=["Ellie", "Participant"],
                                                                        limit_size=False,
@@ -78,22 +77,25 @@ class HyperparamSearch:
 
         model_path = args.model_path
         hyperparams, hyperparams_features = load_params(model_path)
-        hyperparams["dataset"] = args.dataset
-        hyperparams_features["precomputed_vectors_path"] = hyperparams_features["precomputed_vectors_path"].replace("eRisk", args.dataset)
-        hyperparams["learning_rate"] = 0.005
+        hyperparams["dataset"] = "daic-woz"
+        hyperparams_features["precomputed_vectors_path"] = hyperparams_features["precomputed_vectors_path"].replace("eRisk", hyperparams["dataset"])
+        hyperparams_features["precomputed_vectors_path"] = hyperparams_features["precomputed_vectors_path"].replace("alex", hyperparams["dataset"])
+        hyperparams["learning_rate"] = 0.0001
 
         experiment = initialize_experiment(hyperparams=hyperparams, hyperparams_features=hyperparams_features,
-                                           project_name="transfer-learning-optimization-wo")
+                                           project_name=f"transfer-learning-optimization-finetuning-{args.note}-deep")
         experiment.log_parameters(hyperparams)
         experiment.log_parameters(hyperparams_features)
 
         UAPs, UARs, uF1s = [], [], []
 
+        model = self.get_model_fn(hyperparams, hyperparams_features)
+
         skf = StratifiedKFold(n_splits=5)
         for train_idx, valid_idx in skf.split(subjects_split["train"], [user_level_data[x]["label"] for x in subjects_split["train"]]):
-            tf.random.set_seed(43)
-            np.random.seed(43)
-            random.seed(43)
+            # tf.random.set_seed(43)
+            # np.random.seed(43)
+            # random.seed(43)
 
             cross_validation_subjects_split = {
                 # to be comparable with other paper
@@ -114,8 +116,14 @@ class HyperparamSearch:
                                                                                                          hyperparams,
                                                                                                          hyperparams_features)
 
-            model = self.get_model_fn(hyperparams, hyperparams_features)
             model = load_saved_model_weights(model, model_path, hyperparams, hyperparams_features, h5=True)
+
+            random_id = str(random.random())
+            model_path = f'/home/petlor/mental-health/code/resources/models/{hyperparams_features["model"]}_{hyperparams_features["embeddings_name"]}_{args.version}_{random_id}'
+            # because random seed is set to save values causing overwriting
+            while os.path.isfile(model_path + "_weights.h5"):
+                random_id = str(random.random())
+                model_path = f'/home/petlor/mental-health/code/resources/models/{hyperparams_features["model"]}_{hyperparams_features["embeddings_name"]}_{args.version}_{random_id}'
 
             model, history = train(data_generator_train=data_generator_train,
                                    data_generator_valid=data_generator_valid,
@@ -134,8 +142,6 @@ class HyperparamSearch:
             UAPs.append(UAP)
             UARs.append(UAR)
             uF1s.append(uF1)
-
-            del model
 
         experiment.log_metric("daic_UAP", np.average(UAPs))
         experiment.log_metric("daic_UAR", np.average(UARs))

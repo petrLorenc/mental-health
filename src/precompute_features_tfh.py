@@ -73,6 +73,13 @@ if __name__ == '__main__':
                                                          # include_only=["Ellie", "Participant"],
                                                          limit_size=False,
                                                          tokenizer=RegexpTokenizer(r'\w+'))
+    elif dataset == "alex":
+        user_level_data, subjects_split = load_daic_data(path_train="../data/alex/train.json",
+                                                         path_valid="../data/alex/valid.json",
+                                                         path_test="../data/alex/test.json",
+                                                         include_only=["client"],
+                                                         limit_size=False,
+                                                         tokenizer=RegexpTokenizer(r'\w+'))
     else:
         raise Exception(f"Unknown dataset: {dataset}")
 

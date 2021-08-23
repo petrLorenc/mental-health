@@ -1,0 +1,29 @@
+{
+    "trainable_embeddings": false,
+
+    "positive_class_weight": 1,
+    "chunk_size": 5,
+    "batch_size": 32,
+    "max_seq_len": 50,
+    "epochs": 100,
+
+    "threshold": 0.5,
+    "l2_dense": 0.00011,
+    "l2_embeddings": 1e-07,
+    "norm_momentum": 0.1,
+    "lstm_units_user": 100,
+    "decay": 0.001,
+
+    "reduce_lr_factor": 0.9,
+    "reduce_lr_patience": 1,
+    "scheduled_reduce_lr_freq": 1,
+    "scheduled_reduce_lr_factor": 0.9,
+    "learning_rate": 0.01,
+    "early_stopping_patience": 3,
+
+    "dropout_rate": 0.1,
+    "lstm_units": 150,
+    "dense_bow_units": 50,
+    "dense_numerical_units": 50,
+    "dense_user_units": 75
+}

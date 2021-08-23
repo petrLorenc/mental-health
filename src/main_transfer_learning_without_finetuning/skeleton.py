@@ -95,19 +95,19 @@ class HyperparamSearch:
 
         UAPs, UARs, uF1s = [], [], []
 
+        data_generator_source_train, data_generator_source_valid, data_generator_source_test = self.get_data_generator_fn(
+            user_level_data_source,
+            subjects_split_source,
+            hyperparams,
+            hyperparams_features)
+
+        model = self.get_model_fn(hyperparams, hyperparams_features)
+
         for _ in range(5):
             # tf.random.set_seed(43)
             # np.random.seed(43)
             # random.seed(43)
-
-            model = self.get_model_fn(hyperparams, hyperparams_features)
             model = load_saved_model_weights(model, model_path, hyperparams, hyperparams_features, h5=True)
-
-            data_generator_source_train, data_generator_source_valid, data_generator_source_test = self.get_data_generator_fn(
-                user_level_data_source,
-                subjects_split_source,
-                hyperparams,
-                hyperparams_features)
 
             UAP, UAR, uF1 = test(model=model,
                                  data_generator_train=data_generator_source_train,    # TO ALLOW TO COMPARE RESULTS

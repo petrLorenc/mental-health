@@ -1,0 +1,6 @@
+{
+    "model": "neural_network",
+    "embeddings_name": "unigrams",
+    "vocabulary_path": "/home/petlor/mental-health/code/resources/generated/vocab_daic/unigrams_participant_3123.txt",
+    "embedding_dim": 3125
+}

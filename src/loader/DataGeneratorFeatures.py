@@ -1,3 +1,5 @@
+from utils.logger import logger
+
 import numpy as np
 
 from tensorflow.keras.preprocessing import sequence
@@ -51,8 +53,14 @@ class DataGeneratorHierarchical(AbstractDataGenerator):
         tokens_data = []
         categ_data = []
         sparse_data = []
-        for sentence_tokens in sequence_tokens:
-            encoded_tokens, encoded_emotions, encoded_pronouns, encoded_stopwords, encoded_liwc, = self.__encode_text__(sentence_tokens)
+        for sentence_token in sequence_tokens:
+            try:
+                encoded_tokens, encoded_emotions, encoded_pronouns, encoded_stopwords, encoded_liwc, = self.__encode_text__(sentence_token)
+            except ZeroDivisionError as e:
+                logger.info(user)
+                logger.info(sentence_token)
+                raise e
+
             tokens_data.append(encoded_tokens)
 
             categ_data.append(encoded_emotions + [encoded_pronouns] + encoded_liwc)

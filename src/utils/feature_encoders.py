@@ -67,7 +67,7 @@ class LIWC_vectorizer(object):
             for idx_category in categories:
                 categories_cnt[self.num2idx[idx_category]] += 1
         text_len = len(tokens)
-        if relative:
+        if relative and text_len:
             for i in range(len(self.num2idx)):
                 categories_cnt[i] = categories_cnt[i] / text_len
         return categories_cnt

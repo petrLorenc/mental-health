@@ -79,7 +79,7 @@ class AbstractDataGenerator(Sequence):
     def yield_data_grouped_by_users(self):
         frozen_users = list(self.indexes_per_user.keys())
         for user in frozen_users:
-            # logger.debug(f"{self.data_generator_id} generator generate data for {user} user")
+            logger.debug(f"{self.data_generator_id} generator generate data for {user} user")
             yield self.get_data_for_specific_user(user), self.get_label_for_specific_user(user), self.get_text_for_specific_user(user)
 
     def __getitem__(self, index):

@@ -1,0 +1,6 @@
+{
+  "model": "lstm",
+  "embeddings_name": "use4.vstack",
+  "embedding_dim": 512,
+  "precomputed_vectors_path": "/home/petlor/mental-health/code/data/daic-woz/precomputed_features/"
+}

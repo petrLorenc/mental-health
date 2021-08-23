@@ -1,0 +1,10 @@
+{
+    "model": "han",
+    "embeddings_name": "glove",
+    "embedding_dim": 300,
+    "vocabulary_path": "/home/petlor/mental-health/code/resources/generated/vocab_daic/unigrams_participant_3123.txt",
+    "nrc_lexicon_path": "/home/petlor/mental-health/code/resources/NRC-Emotion-Lexicon-Wordlevel-v0.92.txt",
+    "stopwords_path": "/home/petlor/mental-health/code/resources/stopwords.txt",
+    "liwc_path": "/home/petlor/mental-health/code/resources/liwc.dic",
+    "embeddings_path": "/home/petlor/mental-health/code/resources/embeddings/glove.840B.300d.txt"
+}

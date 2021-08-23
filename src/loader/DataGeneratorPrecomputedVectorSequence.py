@@ -33,9 +33,9 @@ class DataGeneratorPrecomputedVectorSequence(AbstractDataGenerator):
         return vectors
 
     def get_data_for_specific_user(self, user):
+        with open(os.path.join(self.precomputed_vectors_path, user + f".feat.{self.feature_extraction_name}.{self.embedding_dimension}.plk"),"rb") as f:
+            precomputed_features = plk.load(f)
         for indexes in self.indexes_per_user[user]:
-            with open(os.path.join(self.precomputed_vectors_path, user + f".feat.{self.feature_extraction_name}.{self.embedding_dimension}.plk"), "rb") as f:
-                precomputed_features = plk.load(f)
             vectors = np.array([precomputed_features[i] for i in indexes])
 
             if len(vectors) == 0:

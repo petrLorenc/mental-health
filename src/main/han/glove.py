@@ -92,12 +92,15 @@ num2emo, whole_words, asterisk_words = load_LIWC(hyperparams_features['liwc_path
 liwc_categories_dim = len(num2emo)
 
 
-def extract_from_experiment_fn(_experiment, _hyperparams, _hyperparams_features):
-    _hyperparams["emotions_dim"] = emotions_dim
-    _hyperparams["stopwords_dim"] = stopwords_dim
-    _hyperparams["liwc_categories_dim"] = liwc_categories_dim
-    _hyperparams_features["word_embedding_type"] = embeddings
+def customize_hyperparams(hp, hpf):
+    hp["emotions_dim"] = emotions_dim
+    hp["stopwords_dim"] = stopwords_dim
+    hp["liwc_categories_dim"] = liwc_categories_dim
+    hpf["word_embedding_type"] = embeddings
 
+
+
+def extract_from_experiment_fn(_experiment, _hyperparams, _hyperparams_features):
     _hyperparams["positive_class_weight"] = _experiment.get_parameter("positive_class_weight")
     _hyperparams["chunk_size"] = _experiment.get_parameter("chunk_size")
     _hyperparams["max_seq_len"] = _experiment.get_parameter("max_seq_len")
@@ -112,9 +115,10 @@ def extract_from_experiment_fn(_experiment, _hyperparams, _hyperparams_features)
 
 if __name__ == '__main__':
     hps = HyperparamSearch(config=config,
-                           default_hyperparam=hyperparams,
-                           default_hyperparam_features=hyperparams_features,
+                           default_hyperparam=None,
+                           default_hyperparam_features=None,
                            get_model_fn=build_hierarchical_model,
                            get_data_generator_fn=initialize_datasets_hierarchical,
-                           extract_from_experiment_fn=extract_from_experiment_fn)
+                           extract_from_experiment_fn=extract_from_experiment_fn,
+                           customize_hyperparams=customize_hyperparams)
     hps.main()

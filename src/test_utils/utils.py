@@ -146,6 +146,7 @@ def test_stateful(model, data_generator_valid, data_generator_test, experiment, 
 
 
 def get_best_threshold_based_on_data_set(model, experiment, data_generator, hyperparams):
+    logger.debug(f"Searching for best threshold...")
     ratios = []
     ground_truth = []
 

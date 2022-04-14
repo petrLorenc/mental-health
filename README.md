@@ -1,4 +1,4 @@
-This repository contains code for training and using deep learning models for mental disorder detection from social media data.
+This repository contains code for training and using deep learning models for mental disorder detection in conversational domain.
 
 ## Install
 The required libraries are:
@@ -7,21 +7,9 @@ The required libraries are:
 
 The full list of packages and versions I used is found in `requirements.txt` (may contain some unnecessary ones)
 
-The required data:
-- expects a `config.json` in the root directory (containing paths to resource files)
-- for generating predictions, expects files with trained model weights and their hyperparameter configurations in `models/`
-- expects external resources (NRC lexicon, LIWC lexicon, pre-trained embeddings) in `resources/`
-- expects vocabulary files and a LIWC cache file in `data/`
-
-
-
 ## Usage
 
-`predict_erisk.py` illustrates how models can be loaded and used to generate predictions on eRisk data.
-
-`predict(run_nr, data_rounds)` can be used to obtain predictions (scores and alerts ("decision"s) for each user ("nick"), for each datapoint) from a specific trained model given some data obtained from the eRisk server, across one or more rounds of interaction with the server.
-
-For more control, `EriskDataGenerator()` (along with `model.predict_step()`) can be used directly, which allows to incrementally add new datapoints to the generator as they are received from the server (without creating a new loader for each new datapoint).
+See `scripts` folder
 
 ## Model
 
@@ -30,6 +18,24 @@ For more control, `EriskDataGenerator()` (along with `model.predict_step()`) can
 
 ## Publications
 
-The code in this repository has been used for experiments published in several papers. If using this resource, please cite the relevant papers:
+If using this resource, please cite the relevant papers (bib format will be provided as soon as possible):
 
-_On the Explainability of Automatic Predictions ofMental Disorders from Social Media Data_, Ana Sabina Uban, Berta Chulvi, Paolo Rosso, NLDB 2021
+ * Detecting early signs of depression in the conversational domain: The role of transfer learning in low-resource scenarios
+    * Petr Lorenc, Ana Sabina Uban, Paolo Rosso, and Jan Šedivý, NLDB 2022
+    
+The code and algorithm was inspired by:
+```
+@InProceedings{10.1007/978-3-030-80599-9_27,
+author="Uban, Ana Sabina
+and Chulvi, Berta
+and Rosso, Paolo",
+title="On the Explainability of Automatic Predictions of Mental Disorders from Social Media Data",
+booktitle="Natural Language Processing and Information Systems",
+year="2021",
+publisher="Springer International Publishing",
+pages="301--314",
+isbn="978-3-030-80599-9"
+}
+```
+    
+All experiment were conducted during internship (May - September 2021) of Petr Lorenc at Universitat Politècnica de València supervised by professor Paolo Rosso

@@ -144,10 +144,7 @@ if __name__ == '__main__':
                                                                                                            hyperparams,
                                                                                                            hyperparams_features)
 
-        model = build_hierarchical_model(hyperparams, hyperparams_features,
-                                         emotions_dim, stopwords_dim, liwc_categories_dim,
-                                         ignore_layer=hyperparams['ignore_layer'],
-                                         word_embedding_type=hyperparams_features["embeddings_name"])
+        model = build_hierarchical_model(hyperparams, hyperparams_features)
 
     elif args.model == "lstm_str_dan" or args.model == "lstm_str_tran":
         if args.model == "lstm_str_dan":

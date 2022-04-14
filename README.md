@@ -9,7 +9,7 @@ The full list of packages and versions I used is found in `requirements.txt` (ma
 
 ## Usage
 
-See `scripts` folder
+See `scripts` folder. Main flow is precompute representation and then apply on your dataset.
 
 ## Model
 

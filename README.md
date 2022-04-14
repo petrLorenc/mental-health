@@ -13,7 +13,7 @@ See `scripts` folder. Main flow is precompute representation and then apply on y
 
 ## Model
 
-![architecture_full](https://user-images.githubusercontent.com/1269090/117694579-99ac2e00-b1bf-11eb-8cc0-0ba6c79272c1.png)
+![architecture_full](fig/slide-window.png)
 
 
 ## Publications
